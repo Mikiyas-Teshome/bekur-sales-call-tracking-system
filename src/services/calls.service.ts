@@ -1,0 +1,65 @@
+import "server-only";
+import { getDataSource } from "@/db/data-source";
+import { Call, CallOutcome, Client, PipelineStage } from "@/entities";
+
+export async function getCallHistory(clientId: number) {
+  const dataSource = await getDataSource();
+  return dataSource
+    .getRepository(Call)
+    .createQueryBuilder("call")
+    .leftJoinAndSelect("call.loggedByUser", "loggedByUser")
+    .where("call.clientId = :clientId", { clientId })
+    .andWhere("call.deletedAt IS NULL")
+    .orderBy("call.calledAt", "DESC")
+    .getMany();
+}
+
+export async function getCallHistoryView(clientId: number) {
+  const calls = await getCallHistory(clientId);
+
+  return calls.map((call) => ({
+    id: `call-${call.id}`,
+    outcome: call.outcome as string,
+    stage: call.pipelineStageAfter as string,
+    note: call.outcomeNote ?? "",
+    date: call.calledAt.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).replace(",", " ·"),
+    value: call.dealValue ? `$${Number(call.dealValue).toLocaleString()}` : null,
+    rep: call.loggedByUser.fullName,
+  }));
+}
+
+export async function logCall(input: {
+  clientId: number;
+  loggedByUserId: number;
+  outcome: CallOutcome;
+  outcomeNote: string | null;
+  pipelineStageAfter: PipelineStage;
+  dealValue: string | null;
+  nextFollowUpDate: string | null;
+}) {
+  const dataSource = await getDataSource();
+
+  return dataSource.transaction(async (manager) => {
+    const client = await manager.getRepository(Client).findOneOrFail({ where: { id: input.clientId }, relations: { campaign: true } });
+
+    const call = await manager.getRepository(Call).save(
+      manager.getRepository(Call).create({
+        clientId: client.id,
+        loggedByUserId: input.loggedByUserId,
+        campaignId: client.campaignId,
+        projectId: client.campaign.projectId,
+        calledAt: new Date(),
+        outcome: input.outcome,
+        outcomeNote: input.outcomeNote,
+        pipelineStageAfter: input.pipelineStageAfter,
+        dealValue: input.dealValue,
+        nextFollowUpDate: input.nextFollowUpDate,
+      }),
+    );
+
+    client.pipelineStage = input.pipelineStageAfter;
+    await manager.getRepository(Client).save(client);
+
+    return call;
+  });
+}
