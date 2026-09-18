@@ -2,6 +2,7 @@ import "server-only";
 import { getDataSource } from "@/db/data-source";
 import { Client, ClientAssignment, PipelineStage } from "@/entities";
 import { normalizePhone } from "@/lib/phone";
+import { paginate, type Paginated } from "@/lib/pagination";
 import type { Lead } from "@/features/clients/fixtures/leads.fixture";
 
 function initialsOf(name: string) {
@@ -62,19 +63,69 @@ function mapClientToLead(client: Client): Lead {
   };
 }
 
-export async function listLeads(): Promise<Lead[]> {
+export type ListLeadsParams = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  campaign?: string;
+  stage?: string;
+  view?: "All leads" | "Needs attention" | "No calls yet" | "Overdue follow-up";
+  sort?: "Newest follow-up" | "Oldest follow-up" | "Most calls" | "Name A-Z";
+};
+
+export async function listLeads(params: ListLeadsParams): Promise<Paginated<Lead>> {
   const dataSource = await getDataSource();
-  const clients = await dataSource
+  const query = dataSource
     .getRepository(Client)
     .createQueryBuilder("client")
     .leftJoinAndSelect("client.campaign", "campaign")
     .leftJoinAndSelect("campaign.project", "project")
     .leftJoinAndSelect("client.currentAssignedUser", "assignee")
     .leftJoinAndSelect("client.calls", "call", "call.deletedAt IS NULL")
-    .orderBy("client.createdAt", "DESC")
-    .getMany();
+    .orderBy("client.createdAt", "DESC");
 
-  return clients.map(mapClientToLead);
+  if (params.search) {
+    query.andWhere("(client.displayName ILIKE :search OR client.phone ILIKE :search OR client.businessName ILIKE :search)", { search: `%${params.search}%` });
+  }
+  if (params.campaign && params.campaign !== "All campaigns") {
+    query.andWhere("campaign.name = :campaignName", { campaignName: params.campaign });
+  }
+  if (params.stage && params.stage !== "All stages") {
+    query.andWhere("client.pipelineStage = :stage", { stage: params.stage });
+  }
+
+  const clients = await query.getMany();
+  let leads = clients.map(mapClientToLead);
+
+  if (params.view === "No calls yet") leads = leads.filter((lead) => lead.callCount === 0);
+  else if (params.view === "Overdue follow-up") leads = leads.filter((lead) => lead.attention === "overdue");
+  else if (params.view === "Needs attention") leads = leads.filter((lead) => lead.attention !== "clear");
+
+  leads.sort((first, second) =>
+    params.sort === "Most calls"
+      ? second.callCount - first.callCount
+      : params.sort === "Name A-Z"
+        ? first.name.localeCompare(second.name)
+        : params.sort === "Oldest follow-up"
+          ? first.id.localeCompare(second.id)
+          : second.id.localeCompare(first.id),
+  );
+
+  const start = (params.page - 1) * params.pageSize;
+  const pageItems = leads.slice(start, start + params.pageSize);
+  return paginate(pageItems, leads.length, params.page, params.pageSize);
+}
+
+export async function listAllPhoneNumbers() {
+  const dataSource = await getDataSource();
+  const clients = await dataSource.getRepository(Client).find({ select: { phone: true } });
+  return clients.map((client) => client.phone);
+}
+
+export async function listDistinctCampaignNames() {
+  const dataSource = await getDataSource();
+  const rows = await dataSource.getRepository(Client).createQueryBuilder("client").leftJoin("client.campaign", "campaign").select("DISTINCT campaign.name", "name").getRawMany<{ name: string }>();
+  return rows.map((row) => row.name).filter(Boolean).sort();
 }
 
 export async function getLeadDetail(code: string) {
@@ -164,6 +215,24 @@ export async function createClient(input: { displayName: string; phone: string; 
 
   await notifyNewLeads(1, `${client.displayName} was just added as a new lead.`);
   return client;
+}
+
+export async function updateClient(code: string, input: { displayName: string; phone: string; businessName?: string | null }) {
+  const dataSource = await getDataSource();
+  const repo = dataSource.getRepository(Client);
+  const client = await repo.findOneOrFail({ where: { code } });
+
+  const phoneNormalized = normalizePhone(input.phone);
+  if (phoneNormalized !== client.phoneNormalized) {
+    const existing = await repo.findOne({ where: { phoneNormalized } });
+    if (existing && existing.id !== client.id) throw new Error(`This number already exists as ${existing.code}`);
+  }
+
+  client.displayName = input.displayName;
+  client.phone = input.phone;
+  client.phoneNormalized = phoneNormalized;
+  client.businessName = input.businessName ?? null;
+  return repo.save(client);
 }
 
 export async function bulkImportClients(input: { phones: string[]; campaignId: number }) {

@@ -6,43 +6,37 @@ import { Check, DollarSign, Megaphone, MessageCircle, Pause, Play, Search, Share
 import { FilterMenu } from "@/components/shared/filter-menu";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
+import { PaginationControls } from "@/components/shared/pagination-controls";
 import { chipClass, primaryPillClass, softPillClass } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
+import { useSearchParamsUpdater } from "@/lib/use-search-params-updater";
+import { useDebouncedSearchFilter } from "@/lib/use-debounced-search-filter";
+import type { Paginated } from "@/lib/pagination";
 import { campaignPlatforms, campaignStatuses, type Campaign } from "@/features/campaigns/fixtures/campaigns.fixture";
 import { createCampaignAction, setCampaignStatusAction } from "@/actions/campaigns";
 import { CampaignStatus } from "@/entities/enums";
 import type { CampaignPlatform } from "@/entities/enums";
 
 type ProjectOption = { code: string; name: string };
+type Filters = { search: string; platform: string; project: string; status: string };
+type Summary = { total: number; activeCount: number; totalSpend: number; totalRevenue: number };
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-const statusClasses = { Active: "bg-success/12 text-success", Paused: "bg-warning/12 text-warning", Ended: "bg-muted text-muted-foreground" };
-const platformIcons: Record<Campaign["platform"], LucideIcon> = { Facebook: Megaphone, Instagram: MessageCircle, Referral: Share2, Organic: Sprout };
+const statusClasses: Record<string, string> = { Active: "bg-success/12 text-success", Paused: "bg-warning/12 text-warning", Ended: "bg-muted text-muted-foreground" };
+const platformIcons: Record<string, LucideIcon> = { Facebook: Megaphone, Instagram: MessageCircle, Referral: Share2, Organic: Sprout };
 
 function roasFor(campaign: Campaign) {
   if (campaign.spend === 0) return "—";
   return `${(campaign.revenue / campaign.spend).toFixed(1)}x`;
 }
 
-export function CampaignsWorkspace({ initialCampaigns, projects }: { initialCampaigns: Campaign[]; projects: ProjectOption[] }) {
-  const [platform, setPlatform] = useState<"All platforms" | Campaign["platform"]>("All platforms");
-  const [project, setProject] = useState("All projects");
-  const [status, setStatus] = useState<"All statuses" | Campaign["status"]>("All statuses");
-  const [query, setQuery] = useState("");
+export function CampaignsWorkspace({ result, projects, projectNames, summary, filters }: { result: Paginated<Campaign>; projects: ProjectOption[]; projectNames: string[]; summary: Summary; filters: Filters }) {
+  const campaigns = result.items;
+  const updateParams = useSearchParamsUpdater();
+  const [searchInput, setSearchInput] = useDebouncedSearchFilter(filters.search);
   const [createOpen, setCreateOpen] = useState(false);
   const [managedCampaign, setManagedCampaign] = useState<Campaign | null>(null);
-  const campaignProjects = [...new Set(initialCampaigns.map((campaign) => campaign.project))];
-
-  const visibleCampaigns = initialCampaigns
-    .filter((campaign) => platform === "All platforms" || campaign.platform === platform)
-    .filter((campaign) => project === "All projects" || campaign.project === project)
-    .filter((campaign) => status === "All statuses" || campaign.status === status)
-    .filter((campaign) => campaign.name.toLowerCase().includes(query.toLowerCase()));
-
-  const totalSpend = initialCampaigns.reduce((sum, campaign) => sum + campaign.spend, 0);
-  const totalRevenue = initialCampaigns.reduce((sum, campaign) => sum + campaign.revenue, 0);
-  const activeCount = initialCampaigns.filter((campaign) => campaign.status === "Active").length;
 
   return (
     <div className="space-y-4 lg:space-y-5">
@@ -59,30 +53,30 @@ export function CampaignsWorkspace({ initialCampaigns, projects }: { initialCamp
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <CampaignStat icon={Megaphone} label="Active campaigns" value={String(activeCount)} detail={`${initialCampaigns.length} total`} />
-        <CampaignStat icon={Wallet} label="Total ad spend" value={currency.format(totalSpend)} detail="across all sources" />
-        <CampaignStat icon={TrendingUp} label="Total attributed revenue" value={currency.format(totalRevenue)} detail={`${(totalRevenue / Math.max(totalSpend, 1)).toFixed(1)}x blended ROAS`} />
+        <CampaignStat icon={Megaphone} label="Active campaigns" value={String(summary.activeCount)} detail={`${summary.total} total`} />
+        <CampaignStat icon={Wallet} label="Total ad spend" value={currency.format(summary.totalSpend)} detail="across all sources" />
+        <CampaignStat icon={TrendingUp} label="Total attributed revenue" value={currency.format(summary.totalRevenue)} detail={`${(summary.totalRevenue / Math.max(summary.totalSpend, 1)).toFixed(1)}x blended ROAS`} />
       </section>
 
       <Surface>
         <SurfaceHeader className="items-start">
           <div>
             <SurfaceTitle>All campaigns</SurfaceTitle>
-            <p className="mt-1 text-sm text-muted-foreground">{visibleCampaigns.length} campaigns match your current view.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{result.total} campaigns match your current view.</p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <FilterMenu label="Platform" value={platform} options={["All platforms", ...campaignPlatforms]} onChange={(value) => setPlatform(value as typeof platform)} />
-            <FilterMenu label="Project" value={project} options={["All projects", ...campaignProjects]} onChange={setProject} />
-            <FilterMenu label="Status" value={status} options={["All statuses", ...campaignStatuses]} onChange={(value) => setStatus(value as typeof status)} />
+            <FilterMenu label="Platform" value={filters.platform} options={["All platforms", ...campaignPlatforms]} onChange={(value) => updateParams({ platform: value === "All platforms" ? null : value })} />
+            <FilterMenu label="Project" value={filters.project} options={["All projects", ...projectNames]} onChange={(value) => updateParams({ project: value === "All projects" ? null : value })} />
+            <FilterMenu label="Status" value={filters.status} options={["All statuses", ...campaignStatuses]} onChange={(value) => updateParams({ status: value === "All statuses" ? null : value })} />
           </div>
         </SurfaceHeader>
         <label className="relative mt-5 block">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-          <input aria-label="Search campaigns" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by campaign name" className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
+          <input aria-label="Search campaigns" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search by campaign name" className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
         </label>
       </Surface>
 
-      {visibleCampaigns.length ? (
+      {campaigns.length ? (
         <>
           <Surface className="hidden overflow-hidden p-0 md:block">
             <div className="overflow-x-auto">
@@ -100,7 +94,7 @@ export function CampaignsWorkspace({ initialCampaigns, projects }: { initialCamp
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {visibleCampaigns.map((campaign) => (
+                  {campaigns.map((campaign) => (
                     <CampaignRow key={campaign.id} campaign={campaign} onManage={setManagedCampaign} />
                   ))}
                 </tbody>
@@ -108,10 +102,13 @@ export function CampaignsWorkspace({ initialCampaigns, projects }: { initialCamp
             </div>
           </Surface>
           <div className="space-y-3 md:hidden">
-            {visibleCampaigns.map((campaign) => (
+            {campaigns.map((campaign) => (
               <CampaignCard key={campaign.id} campaign={campaign} onManage={setManagedCampaign} />
             ))}
           </div>
+          <Surface className="py-3">
+            <PaginationControls page={result.page} totalPages={result.totalPages} total={result.total} pageSize={result.pageSize} />
+          </Surface>
         </>
       ) : (
         <Surface>

@@ -1,6 +1,7 @@
 import {
   BarChart3,
   BriefcaseBusiness,
+  History,
   LayoutGrid,
   Megaphone,
   Settings,
@@ -19,6 +20,7 @@ export type NavigationItem = {
 export const primaryNavigation: NavigationItem[] = [
   { href: "/", label: "Home", icon: LayoutGrid },
   { href: "/leads", label: "Leads", icon: Contact },
+  { href: "/calls", label: "Call Log", icon: History },
   { href: "/projects", label: "Projects", icon: BriefcaseBusiness },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/reports", label: "Reports", icon: BarChart3 },
@@ -34,6 +36,7 @@ export const mobileTabs: NavigationItem[] = primaryNavigation.filter(({ href }) 
 const navigationGuards: Record<string, PermissionKey> = {
   "/team": "team:view",
   "/projects": "projects:view",
+  "/calls": "leads:view",
 };
 
 export function navigationFor(permissions: PermissionSet) {
@@ -46,6 +49,7 @@ export function navigationFor(permissions: PermissionSet) {
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
   "/leads": "Leads",
+  "/calls": "Call Log",
   "/projects": "Projects",
   "/campaigns": "Campaigns",
   "/reports": "Reports",

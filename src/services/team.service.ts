@@ -7,15 +7,17 @@ import { getRole, resolveRoleId } from "@/services/roles.service";
 import { createAuthToken } from "@/lib/auth-tokens";
 import { sendEmail } from "@/lib/resend";
 import { InviteTeammateEmail } from "@/emails/invite-teammate.email";
+import { paginate, type Paginated } from "@/lib/pagination";
 
 const INVITE_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export async function listTeamMembers() {
+async function mapTeamMembers(users: User[]) {
   const dataSource = await getDataSource();
-  const users = await dataSource.getRepository(User).find({ relations: { role: true }, order: { createdAt: "ASC" } });
+  if (!users.length) return [];
+  const userIds = users.map((user) => user.id);
 
   const [callCounts, revenueRows, activatedRows] = await Promise.all([
-    dataSource.getRepository(Call).createQueryBuilder("call").select("call.loggedByUserId", "userId").addSelect("COUNT(*)", "count").where("call.deletedAt IS NULL").groupBy("call.loggedByUserId").getRawMany<{ userId: number; count: string }>(),
+    dataSource.getRepository(Call).createQueryBuilder("call").select("call.loggedByUserId", "userId").addSelect("COUNT(*)", "count").where("call.deletedAt IS NULL").andWhere("call.loggedByUserId IN (:...userIds)", { userIds }).groupBy("call.loggedByUserId").getRawMany<{ userId: number; count: string }>(),
     dataSource
       .getRepository(Call)
       .createQueryBuilder("call")
@@ -23,6 +25,7 @@ export async function listTeamMembers() {
       .addSelect("COALESCE(SUM(call.dealValue), 0)", "revenue")
       .where("call.pipelineStageAfter = 'Closed Won'")
       .andWhere("call.deletedAt IS NULL")
+      .andWhere("call.loggedByUserId IN (:...userIds)", { userIds })
       .groupBy("call.loggedByUserId")
       .getRawMany<{ userId: number; revenue: string }>(),
     dataSource
@@ -31,10 +34,18 @@ export async function listTeamMembers() {
       .select("DISTINCT token.userId", "userId")
       .where("token.type = :type", { type: AuthTokenType.INVITE })
       .andWhere("token.consumedAt IS NOT NULL")
+      .andWhere("token.userId IN (:...userIds)", { userIds })
       .getRawMany<{ userId: number }>(),
   ]);
 
-  const leadCounts = await dataSource.getRepository(Client).createQueryBuilder("client").select("client.currentAssignedUserId", "userId").addSelect("COUNT(*)", "count").where("client.currentAssignedUserId IS NOT NULL").groupBy("client.currentAssignedUserId").getRawMany<{ userId: number; count: string }>();
+  const leadCounts = await dataSource
+    .getRepository(Client)
+    .createQueryBuilder("client")
+    .select("client.currentAssignedUserId", "userId")
+    .addSelect("COUNT(*)", "count")
+    .where("client.currentAssignedUserId IN (:...userIds)", { userIds })
+    .groupBy("client.currentAssignedUserId")
+    .getRawMany<{ userId: number; count: string }>();
 
   const callsByUser = new Map(callCounts.map((row) => [row.userId, Number(row.count)]));
   const revenueByUser = new Map(revenueRows.map((row) => [row.userId, Number(row.revenue)]));
@@ -64,6 +75,47 @@ export async function listTeamMembers() {
       lastActive: status === "Active" ? "Active" : status === "Inactive" ? "Deactivated" : "Invite sent",
     };
   });
+}
+
+export async function listTeamMembers() {
+  const dataSource = await getDataSource();
+  const users = await dataSource.getRepository(User).find({ relations: { role: true }, order: { createdAt: "ASC" } });
+  return mapTeamMembers(users);
+}
+
+export type ListTeamMembersParams = { page: number; pageSize: number; search?: string; role?: string; status?: string };
+
+export async function listTeamMembersPage(params: ListTeamMembersParams): Promise<Paginated<Awaited<ReturnType<typeof mapTeamMembers>>[number]>> {
+  const dataSource = await getDataSource();
+  const query = dataSource.getRepository(User).createQueryBuilder("user").leftJoinAndSelect("user.role", "role").orderBy("user.createdAt", "ASC");
+
+  if (params.search) query.andWhere("(user.fullName ILIKE :search OR user.email ILIKE :search)", { search: `%${params.search}%` });
+  if (params.role && params.role !== "All roles") query.andWhere("role.name = :roleName", { roleName: params.role });
+
+  const users = await query.getMany();
+  let mapped = await mapTeamMembers(users);
+
+  if (params.status && params.status !== "All statuses") mapped = mapped.filter((member) => member.status === params.status);
+
+  const start = (params.page - 1) * params.pageSize;
+  const pageItems = mapped.slice(start, start + params.pageSize);
+  return paginate(pageItems, mapped.length, params.page, params.pageSize);
+}
+
+export async function getTeamSummary() {
+  const dataSource = await getDataSource();
+  const [userTotals, leadTotals, callTotals] = await Promise.all([
+    dataSource.getRepository(User).createQueryBuilder("user").select("COUNT(*)", "total").addSelect("COUNT(*) FILTER (WHERE user.active = true)", "activeCount").getRawOne<{ total: string; activeCount: string }>(),
+    dataSource.getRepository(Client).createQueryBuilder("client").select("COUNT(*)", "total").where("client.currentAssignedUserId IS NOT NULL").getRawOne<{ total: string }>(),
+    dataSource.getRepository(Call).createQueryBuilder("call").select("COUNT(*)", "total").where("call.deletedAt IS NULL").getRawOne<{ total: string }>(),
+  ]);
+
+  return {
+    total: Number(userTotals?.total ?? 0),
+    activeCount: Number(userTotals?.activeCount ?? 0),
+    totalLeads: Number(leadTotals?.total ?? 0),
+    totalCalls: Number(callTotals?.total ?? 0),
+  };
 }
 
 export async function resolveUserId(code: string) {

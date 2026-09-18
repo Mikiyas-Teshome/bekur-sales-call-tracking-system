@@ -1,6 +1,76 @@
 import "server-only";
 import { getDataSource } from "@/db/data-source";
 import { Call, CallOutcome, Client, PipelineStage } from "@/entities";
+import { paginate, type Paginated } from "@/lib/pagination";
+
+export type CallLogRow = {
+  id: string;
+  clientCode: string;
+  clientName: string;
+  clientPhone: string;
+  outcome: string;
+  stage: string;
+  note: string;
+  date: string;
+  calledAt: string;
+  value: string | null;
+  rep: string;
+  campaign: string;
+  project: string;
+};
+
+export type ListAllCallsParams = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  outcome?: string;
+  repCode?: string;
+};
+
+export async function listAllCalls(params: ListAllCallsParams): Promise<Paginated<CallLogRow>> {
+  const dataSource = await getDataSource();
+  const query = dataSource
+    .getRepository(Call)
+    .createQueryBuilder("call")
+    .leftJoinAndSelect("call.client", "client")
+    .leftJoinAndSelect("call.loggedByUser", "loggedByUser")
+    .leftJoinAndSelect("call.campaign", "campaign")
+    .leftJoinAndSelect("call.project", "project")
+    .where("call.deletedAt IS NULL")
+    .orderBy("call.calledAt", "DESC");
+
+  if (params.search) {
+    query.andWhere("(client.displayName ILIKE :search OR client.phone ILIKE :search)", { search: `%${params.search}%` });
+  }
+  if (params.outcome && params.outcome !== "All outcomes") {
+    query.andWhere("call.outcome = :outcome", { outcome: params.outcome });
+  }
+  if (params.repCode && params.repCode !== "All reps") {
+    query.andWhere("loggedByUser.code = :repCode", { repCode: params.repCode });
+  }
+
+  const total = await query.getCount();
+  const start = (params.page - 1) * params.pageSize;
+  const calls = await query.skip(start).take(params.pageSize).getMany();
+
+  const items: CallLogRow[] = calls.map((call) => ({
+    id: `call-${call.id}`,
+    clientCode: call.client.code,
+    clientName: call.client.displayName,
+    clientPhone: call.client.phone,
+    outcome: call.outcome as string,
+    stage: call.pipelineStageAfter as string,
+    note: call.outcomeNote ?? "",
+    date: call.calledAt.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).replace(",", " ·"),
+    calledAt: call.calledAt.toISOString(),
+    value: call.dealValue ? `$${Number(call.dealValue).toLocaleString()}` : null,
+    rep: call.loggedByUser.fullName,
+    campaign: call.campaign?.name ?? "—",
+    project: call.project?.name ?? "—",
+  }));
+
+  return paginate(items, total, params.page, params.pageSize);
+}
 
 export async function getCallHistory(clientId: number) {
   const dataSource = await getDataSource();

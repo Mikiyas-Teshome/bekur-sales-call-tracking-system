@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/require-user";
 import { extractPhoneNumbers } from "@/lib/phone";
-import { bulkImportClients, createClient, reassignClients } from "@/services/clients.service";
+import { bulkImportClients, createClient, reassignClients, updateClient } from "@/services/clients.service";
 import { resolveUserId } from "@/services/team.service";
 import { resolveCampaignId } from "@/services/campaigns.service";
 
@@ -30,6 +30,29 @@ export async function createClientAction(input: z.infer<typeof createClientSchem
   }
 
   revalidatePath("/leads");
+  return { ok: true as const };
+}
+
+const updateClientSchema = z.object({
+  clientCode: z.string().min(1),
+  displayName: z.string().trim().min(1, "Enter a name."),
+  phone: z.string().trim().min(7, "Enter a valid phone number."),
+  businessName: z.string().trim().optional(),
+});
+
+export async function updateClientAction(input: z.infer<typeof updateClientSchema>) {
+  const parsed = updateClientSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid lead." };
+
+  await requirePermission("leads:create");
+  try {
+    await updateClient(parsed.data.clientCode, { displayName: parsed.data.displayName, phone: parsed.data.phone, businessName: parsed.data.businessName ?? null });
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "Could not update lead." };
+  }
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${parsed.data.clientCode}`);
   return { ok: true as const };
 }
 

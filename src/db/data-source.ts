@@ -9,10 +9,13 @@ function requireEnv(name: string) {
   return value;
 }
 
+const connectionUrl = requireEnv("DATABASE_URL_POOLED");
+const isLocalConnection = /localhost|127\.0\.0\.1/.test(connectionUrl);
+
 export const AppDataSource = new DataSource({
   type: "postgres",
-  url: requireEnv("DATABASE_URL_POOLED"),
-  ssl: { rejectUnauthorized: false },
+  url: connectionUrl,
+  ssl: isLocalConnection ? false : { rejectUnauthorized: false },
   entities: [User, Role, Permission, Project, Campaign, Client, ClientAssignment, Call, AuditLog, AuthToken, DeviceToken, NotificationPreference],
   synchronize: false,
   logging: false,

@@ -1,12 +1,14 @@
 import "server-only";
 import { getDataSource } from "@/db/data-source";
 import { Client, Call, Campaign, PipelineStage, Project, ProjectStatus } from "@/entities";
+import { paginate, type Paginated } from "@/lib/pagination";
 
-export async function listProjects() {
+async function mapProjectsWithStats(projects: Project[]) {
+  if (!projects.length) return [];
   const dataSource = await getDataSource();
-  const projects = await dataSource.getRepository(Project).find({ order: { createdAt: "ASC" } });
+  const projectIds = projects.map((project) => project.id);
 
-  const campaignCounts = await dataSource.getRepository(Campaign).createQueryBuilder("campaign").select("campaign.projectId", "projectId").addSelect("COUNT(*)", "count").groupBy("campaign.projectId").getRawMany<{ projectId: number; count: string }>();
+  const campaignCounts = await dataSource.getRepository(Campaign).createQueryBuilder("campaign").select("campaign.projectId", "projectId").addSelect("COUNT(*)", "count").where("campaign.projectId IN (:...projectIds)", { projectIds }).groupBy("campaign.projectId").getRawMany<{ projectId: number; count: string }>();
 
   const leadCounts = await dataSource
     .getRepository(Client)
@@ -14,6 +16,7 @@ export async function listProjects() {
     .leftJoin("client.campaign", "campaign")
     .select("campaign.projectId", "projectId")
     .addSelect("COUNT(*)", "count")
+    .where("campaign.projectId IN (:...projectIds)", { projectIds })
     .groupBy("campaign.projectId")
     .getRawMany<{ projectId: number; count: string }>();
 
@@ -24,6 +27,7 @@ export async function listProjects() {
     .addSelect("COALESCE(SUM(call.dealValue), 0)", "revenue")
     .where("call.pipelineStageAfter = :won", { won: PipelineStage.CLOSED_WON })
     .andWhere("call.deletedAt IS NULL")
+    .andWhere("call.projectId IN (:...projectIds)", { projectIds })
     .groupBy("call.projectId")
     .getRawMany<{ projectId: number; revenue: string }>();
 
@@ -50,6 +54,63 @@ export async function listProjects() {
       startDate: project.startDate ?? "—",
     };
   });
+}
+
+export async function listProjects() {
+  const dataSource = await getDataSource();
+  const projects = await dataSource.getRepository(Project).find({ order: { createdAt: "ASC" } });
+  return mapProjectsWithStats(projects);
+}
+
+export type ListProjectsParams = { page: number; pageSize: number; search?: string; status?: string };
+
+export async function listProjectsPage(params: ListProjectsParams): Promise<Paginated<Awaited<ReturnType<typeof mapProjectsWithStats>>[number]>> {
+  const dataSource = await getDataSource();
+  const query = dataSource.getRepository(Project).createQueryBuilder("project").orderBy("project.createdAt", "ASC");
+
+  if (params.search) query.andWhere("project.name ILIKE :search", { search: `%${params.search}%` });
+  if (params.status && params.status !== "All statuses") query.andWhere("project.status = :status", { status: params.status });
+
+  const projects = await query.getMany();
+  const mapped = await mapProjectsWithStats(projects);
+
+  const start = (params.page - 1) * params.pageSize;
+  const pageItems = mapped.slice(start, start + params.pageSize);
+  return paginate(pageItems, mapped.length, params.page, params.pageSize);
+}
+
+export async function getProjectsSummary() {
+  const dataSource = await getDataSource();
+  const totalsRow = await dataSource
+    .getRepository(Project)
+    .createQueryBuilder("project")
+    .select("COUNT(*)", "total")
+    .addSelect("COUNT(*) FILTER (WHERE project.status = :active)", "activeCount")
+    .setParameter("active", ProjectStatus.ACTIVE)
+    .getRawOne<{ total: string; activeCount: string }>();
+
+  const leadsRow = await dataSource
+    .getRepository(Client)
+    .createQueryBuilder("client")
+    .leftJoin("client.campaign", "campaign")
+    .select("COUNT(*)", "totalLeads")
+    .where("campaign.projectId IS NOT NULL")
+    .getRawOne<{ totalLeads: string }>();
+
+  const revenueRow = await dataSource
+    .getRepository(Call)
+    .createQueryBuilder("call")
+    .select("COALESCE(SUM(call.dealValue), 0)", "totalRevenue")
+    .where("call.pipelineStageAfter = :won", { won: PipelineStage.CLOSED_WON })
+    .andWhere("call.deletedAt IS NULL")
+    .getRawOne<{ totalRevenue: string }>();
+
+  return {
+    total: Number(totalsRow?.total ?? 0),
+    activeCount: Number(totalsRow?.activeCount ?? 0),
+    totalLeads: Number(leadsRow?.totalLeads ?? 0),
+    totalRevenue: Number(revenueRow?.totalRevenue ?? 0),
+  };
 }
 
 export async function resolveProjectId(code: string) {

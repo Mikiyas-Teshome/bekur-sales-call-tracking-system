@@ -6,25 +6,29 @@ import { Archive, BriefcaseBusiness, Check, Megaphone, Search, Target, UsersRoun
 import { FilterMenu } from "@/components/shared/filter-menu";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
+import { PaginationControls } from "@/components/shared/pagination-controls";
 import { chipClass, primaryPillClass, softPillClass } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
+import { useSearchParamsUpdater } from "@/lib/use-search-params-updater";
+import { useDebouncedSearchFilter } from "@/lib/use-debounced-search-filter";
+import type { Paginated } from "@/lib/pagination";
 import { projectStatuses, type Project } from "@/features/projects/fixtures/projects.fixture";
 import { createProjectAction, archiveProjectAction } from "@/actions/projects";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-const statusClasses = { Active: "bg-success/12 text-success", Planning: "bg-primary/12 text-primary", Archived: "bg-muted text-muted-foreground" };
-const healthClasses = { "On track": "bg-success/12 text-success", "At risk": "bg-warning/12 text-warning", Behind: "bg-destructive/12 text-destructive" };
+const statusClasses: Record<string, string> = { Active: "bg-success/12 text-success", Planning: "bg-primary/12 text-primary", Archived: "bg-muted text-muted-foreground" };
+const healthClasses: Record<string, string> = { "On track": "bg-success/12 text-success", "At risk": "bg-warning/12 text-warning", Behind: "bg-destructive/12 text-destructive" };
 
-export function ProjectsWorkspace({ initialProjects, owners }: { initialProjects: Project[]; owners: string[] }) {
-  const [status, setStatus] = useState<"All statuses" | Project["status"]>("All statuses");
-  const [query, setQuery] = useState("");
+type Filters = { search: string; status: string };
+type Summary = { total: number; activeCount: number; totalLeads: number; totalRevenue: number };
+
+export function ProjectsWorkspace({ result, owners, summary, filters }: { result: Paginated<Project>; owners: string[]; summary: Summary; filters: Filters }) {
+  const projects = result.items;
+  const updateParams = useSearchParamsUpdater();
+  const [searchInput, setSearchInput] = useDebouncedSearchFilter(filters.search);
   const [createOpen, setCreateOpen] = useState(false);
   const [managedProject, setManagedProject] = useState<Project | null>(null);
-  const visibleProjects = initialProjects.filter((project) => (status === "All statuses" || project.status === status) && project.name.toLowerCase().includes(query.toLowerCase()));
-  const activeCount = initialProjects.filter((project) => project.status === "Active").length;
-  const totalLeads = initialProjects.reduce((sum, project) => sum + project.leads, 0);
-  const totalRevenue = initialProjects.reduce((sum, project) => sum + project.actual, 0);
 
   return (
     <div className="space-y-4 lg:space-y-5">
@@ -41,33 +45,38 @@ export function ProjectsWorkspace({ initialProjects, owners }: { initialProjects
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <ProjectStat icon={BriefcaseBusiness} label="Active projects" value={String(activeCount)} detail={`${initialProjects.length} total`} />
-        <ProjectStat icon={UsersRound} label="Attributed leads" value={totalLeads.toLocaleString()} detail="across all projects" />
-        <ProjectStat icon={Target} label="Revenue to date" value={currency.format(totalRevenue)} detail="all active initiatives" />
+        <ProjectStat icon={BriefcaseBusiness} label="Active projects" value={String(summary.activeCount)} detail={`${summary.total} total`} />
+        <ProjectStat icon={UsersRound} label="Attributed leads" value={summary.totalLeads.toLocaleString()} detail="across all projects" />
+        <ProjectStat icon={Target} label="Revenue to date" value={currency.format(summary.totalRevenue)} detail="all active initiatives" />
       </section>
 
       <Surface>
         <SurfaceHeader className="items-start">
           <div>
             <SurfaceTitle>All projects</SurfaceTitle>
-            <p className="mt-1 text-sm text-muted-foreground">{visibleProjects.length} projects match your current view.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{result.total} projects match your current view.</p>
           </div>
         </SurfaceHeader>
         <div className="mt-5 flex flex-col gap-3 lg:flex-row">
           <label className="relative min-w-0 flex-1">
             <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-            <input aria-label="Search projects" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by project name" className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
+            <input aria-label="Search projects" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search by project name" className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
           </label>
-          <FilterMenu label="Status" value={status} options={["All statuses", ...projectStatuses]} onChange={(value) => setStatus(value as typeof status)} />
+          <FilterMenu label="Status" value={filters.status} options={["All statuses", ...projectStatuses]} onChange={(value) => updateParams({ status: value === "All statuses" ? null : value })} />
         </div>
       </Surface>
 
-      {visibleProjects.length ? (
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} onManage={setManagedProject} />
-          ))}
-        </section>
+      {projects.length ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => (
+              <ProjectCard key={project.id} project={project} onManage={setManagedProject} />
+            ))}
+          </section>
+          <Surface className="py-3">
+            <PaginationControls page={result.page} totalPages={result.totalPages} total={result.total} pageSize={result.pageSize} />
+          </Surface>
+        </>
       ) : (
         <Surface>
           <div className="grid min-h-52 place-items-center text-center">
