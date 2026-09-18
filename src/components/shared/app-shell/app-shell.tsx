@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { CommandLauncher } from "./command-launcher";
 import { DesktopRail } from "./desktop-rail";
+import { ForegroundPushListener } from "./foreground-push-listener";
 import { LauncherProvider } from "./launcher-context";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { NavigationDock } from "./navigation-dock";
@@ -15,6 +16,7 @@ export function AppShell({ children, roles }: { children: ReactNode; roles: Prev
   return (
     <RolePreviewProvider roles={roles}>
       <LauncherProvider>
+        <ForegroundPushListener />
         <div className="min-h-dvh bg-background lg:h-dvh lg:overflow-hidden lg:bg-canvas">
           <DesktopRail />
           <NavigationDock open={dockOpen} onOpenChange={setDockOpen} />

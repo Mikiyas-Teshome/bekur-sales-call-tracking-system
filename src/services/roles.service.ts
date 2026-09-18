@@ -109,6 +109,21 @@ export async function countUsersWithPermission(key: PermissionKey) {
     .getCount();
 }
 
+export async function listUserIdsWithPermission(key: PermissionKey) {
+  const dataSource = await getDataSource();
+  const rows = await dataSource
+    .getRepository(User)
+    .createQueryBuilder("user")
+    .select("user.id", "id")
+    .innerJoin("user.role", "role")
+    .innerJoin("role.permissions", "permission")
+    .where("permission.key = :key", { key })
+    .andWhere("user.active = true")
+    .getRawMany<{ id: number }>();
+
+  return rows.map((row) => row.id);
+}
+
 export async function assignUserRole(userId: number, roleId: number) {
   const dataSource = await getDataSource();
   const userRepo = dataSource.getRepository(User);

@@ -128,6 +128,18 @@ export async function getClientAssignmentHistory(clientId: number) {
   }));
 }
 
+async function notifyNewLeads(count: number, summary: string) {
+  if (count <= 0) return;
+  try {
+    const { listUserIdsWithPermission } = await import("@/services/roles.service");
+    const { notify } = await import("@/services/notifications.service");
+    const managerIds = await listUserIdsWithPermission("dashboard:view_team_scope");
+    if (managerIds.length) await notify(managerIds, "new-lead", { title: "New lead", body: summary, url: "/leads" });
+  } catch (error) {
+    console.error("New lead notification failed", error);
+  }
+}
+
 export async function createClient(input: { displayName: string; phone: string; businessName?: string; campaignId: number; assignedUserId?: number | null }) {
   const dataSource = await getDataSource();
   const repo = dataSource.getRepository(Client);
@@ -137,7 +149,7 @@ export async function createClient(input: { displayName: string; phone: string; 
   if (existing) throw new Error(`This number already exists as ${existing.code}`);
 
   const code = await nextClientCode(dataSource);
-  return repo.save(
+  const client = await repo.save(
     repo.create({
       code,
       displayName: input.displayName,
@@ -149,6 +161,9 @@ export async function createClient(input: { displayName: string; phone: string; 
       pipelineStage: PipelineStage.NEW_LEAD,
     }),
   );
+
+  await notifyNewLeads(1, `${client.displayName} was just added as a new lead.`);
+  return client;
 }
 
 export async function bulkImportClients(input: { phones: string[]; campaignId: number }) {
@@ -176,13 +191,14 @@ export async function bulkImportClients(input: { phones: string[]; campaignId: n
     created += 1;
   }
 
+  await notifyNewLeads(created, `${created} new lead${created === 1 ? "" : "s"} were imported.`);
   return { created, skipped: input.phones.length - created };
 }
 
 export async function reassignClients(input: { clientCodes: string[]; toUserId: number; assignedByUserId: number }) {
   const dataSource = await getDataSource();
 
-  return dataSource.transaction(async (manager) => {
+  const count = await dataSource.transaction(async (manager) => {
     const clients = await manager.getRepository(Client).find({ where: input.clientCodes.map((code) => ({ code })) });
 
     for (const client of clients) {
@@ -199,6 +215,17 @@ export async function reassignClients(input: { clientCodes: string[]; toUserId: 
 
     return clients.length;
   });
+
+  if (count > 0) {
+    try {
+      const { notify } = await import("@/services/notifications.service");
+      await notify([input.toUserId], "assignment", { title: "New leads assigned to you", body: `${count} lead${count === 1 ? "" : "s"} ${count === 1 ? "was" : "were"} just assigned to you.`, url: "/leads" });
+    } catch (error) {
+      console.error("Assignment notification failed", error);
+    }
+  }
+
+  return count;
 }
 
 async function nextClientCode(dataSource: Awaited<ReturnType<typeof getDataSource>>) {

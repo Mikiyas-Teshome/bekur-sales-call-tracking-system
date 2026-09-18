@@ -1,9 +1,10 @@
 "use client";
 
 import { KeyRound } from "lucide-react";
+import { resetPasswordAction } from "@/actions/auth";
 import { SetPasswordForm } from "./set-password-form";
 
-export function ResetPasswordForm() {
+export function ResetPasswordForm({ token }: { token: string }) {
   return (
     <SetPasswordForm
       icon={KeyRound}
@@ -12,6 +13,7 @@ export function ResetPasswordForm() {
       submitLabel="Update password"
       successTitle="Password updated"
       successDescription="Your password has been changed. Sign in with your new password."
+      onSubmit={(password) => resetPasswordAction({ token, password })}
     />
   );
 }

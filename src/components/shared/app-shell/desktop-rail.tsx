@@ -1,13 +1,14 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { signOutWithPushCleanup } from "@/lib/sign-out";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
-import { LogOut, PhoneCall } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRolePreview } from "@/components/shared/role-preview";
 import { isCurrentPath, navigationFor, settingsNavigation, type NavigationItem } from "./navigation";
+import { BekurLogo } from "./bekur-logo";
 
 const expandDelayMs = 150;
 
@@ -76,9 +77,7 @@ export function DesktopRail() {
       className="group/rail fixed inset-y-0 left-0 z-40 hidden w-20 flex-col bg-canvas px-[18px] py-5 transition-[width] duration-200 data-[expanded=true]:w-60 lg:flex"
     >
       <Link href="/" aria-label="Bekur home" onClick={collapseAfterNavigate} className={cn(railItemClass, "text-canvas-foreground hover:bg-transparent")}>
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_20px_-6px_var(--primary)]">
-          <PhoneCall className="size-4.5" strokeWidth={2.25} />
-        </span>
+        <BekurLogo />
         <span className={cn(railLabelClass, "leading-tight")}>
           <span className="block text-base font-bold">Bekur</span>
           <span className="block text-xs font-medium text-canvas-muted">Sales workspace</span>
@@ -93,7 +92,7 @@ export function DesktopRail() {
         <RailLink item={settingsNavigation} current={isCurrentPath(pathname, settingsNavigation.href)} onNavigate={collapseAfterNavigate} />
       </nav>
 
-      <button type="button" onClick={() => signOut({ callbackUrl: "/login" })} className={railItemClass}>
+      <button type="button" onClick={() => signOutWithPushCleanup({ callbackUrl: "/login" })} className={railItemClass}>
         <span className="grid size-11 shrink-0 place-items-center">
           <LogOut className="size-5" strokeWidth={1.75} />
         </span>

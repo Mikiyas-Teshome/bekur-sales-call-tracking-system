@@ -3,14 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Mail, MoreHorizontal, Search, Shield, ShieldCheck, UserRoundPlus, UsersRound } from "lucide-react";
+import { Check, Mail, MoreHorizontal, Search, Shield, ShieldCheck, UserRoundPlus, UserRoundX, UsersRound } from "lucide-react";
 import { FilterMenu } from "@/components/shared/filter-menu";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
 import { chipClass, primaryPillClass, softPillClass } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "./fixtures/team.fixture";
-import { getMemberAssignedLeadsAction, inviteTeamMemberAction } from "@/actions/team";
+import { getMemberAssignedLeadsAction, inviteTeamMemberAction, setTeamMemberActiveAction } from "@/actions/team";
 import { assignUserRoleAction } from "@/actions/roles";
 import { reassignClientsAction } from "@/actions/clients";
 
@@ -49,6 +49,7 @@ function InviteDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChan
   const [email, setEmail] = useState("");
   const [roleCode, setRoleCode] = useState(roles[0]?.code ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -59,11 +60,13 @@ function InviteDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChan
       setEmail("");
       setRoleCode(roles[0]?.code ?? "");
       setError(null);
+      setWarning(null);
     }
   };
 
   const submit = () => {
     setError(null);
+    setWarning(null);
     startTransition(async () => {
       const result = await inviteTeamMemberAction({ fullName, email, roleCode });
       if (!result.ok) {
@@ -71,6 +74,10 @@ function InviteDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChan
         return;
       }
       router.refresh();
+      if (!result.emailSent) {
+        setWarning(`Teammate added, but the invite email couldn't be sent${result.emailError ? ` (${result.emailError})` : ""}. Check your Resend configuration and resend the invite later.`);
+        return;
+      }
       close(false);
     });
   };
@@ -97,6 +104,7 @@ function InviteDialog({ open, onOpenChange, roles }: { open: boolean; onOpenChan
           </select>
         </label>
         {error ? <p className="text-sm font-semibold text-destructive">{error}</p> : null}
+        {warning ? <p className="text-sm font-semibold text-warning">{warning}</p> : null}
         <button type="button" disabled={pending || !fullName.trim() || !email.trim() || !roleCode} onClick={submit} className={cn(primaryPillClass, "h-12 w-full text-sm disabled:pointer-events-none disabled:opacity-50")}>
           <Mail className="size-4" strokeWidth={1.75} />
           {pending ? "Sending…" : "Send invitation"}
@@ -112,6 +120,8 @@ function ManageDialog({ member, roles, teammates, onClose }: { member: TeamMembe
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
   const [assignmentsOpen, setAssignmentsOpen] = useState(false);
+  const [activeError, setActiveError] = useState<string | null>(null);
+  const [activePending, startActiveTransition] = useTransition();
   const router = useRouter();
 
   if (!member) return null;
@@ -127,6 +137,19 @@ function ManageDialog({ member, roles, teammates, onClose }: { member: TeamMembe
       }
       router.refresh();
       setSaved(true);
+    });
+  };
+
+  const setActive = (active: boolean) => {
+    setActiveError(null);
+    startActiveTransition(async () => {
+      const result = await setTeamMemberActiveAction({ userCode: member.id, active });
+      if (!result.ok) {
+        setActiveError(result.error);
+        return;
+      }
+      router.refresh();
+      onClose();
     });
   };
 
@@ -161,6 +184,20 @@ function ManageDialog({ member, roles, teammates, onClose }: { member: TeamMembe
             Manage assignments
           </button>
         )}
+        {member.status !== "Invited" ? (
+          <div>
+            <button
+              type="button"
+              disabled={activePending}
+              onClick={() => setActive(member.status !== "Active")}
+              className={cn(softPillClass, "h-11 w-full justify-start px-4 text-sm disabled:pointer-events-none disabled:opacity-50", member.status === "Active" && "text-destructive")}
+            >
+              <UserRoundX className="size-4" strokeWidth={1.75} />
+              {activePending ? "Saving…" : member.status === "Active" ? "Deactivate teammate" : "Reactivate teammate"}
+            </button>
+            {activeError ? <p className="mt-2 text-xs font-semibold text-destructive">{activeError}</p> : null}
+          </div>
+        ) : null}
         <button type="button" onClick={onClose} className={cn(primaryPillClass, "h-11 w-full text-sm")}>
           <Check className="size-4" strokeWidth={2.25} />
           Done

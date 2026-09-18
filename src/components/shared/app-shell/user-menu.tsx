@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { signOutWithPushCleanup } from "@/lib/sign-out";
 import Link from "next/link";
 import { LogOut, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -93,7 +93,7 @@ export function UserMenu() {
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" className="h-10 rounded-xl px-2.5" onClick={() => signOut({ callbackUrl: "/login" })}>
+        <DropdownMenuItem variant="destructive" className="h-10 rounded-xl px-2.5" onClick={() => signOutWithPushCleanup({ callbackUrl: "/login" })}>
           <LogOut /> Log out
         </DropdownMenuItem>
       </DropdownMenuContent>

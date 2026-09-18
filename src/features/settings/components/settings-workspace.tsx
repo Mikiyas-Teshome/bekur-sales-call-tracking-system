@@ -3,13 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Bell, Camera, Check, KeyRound, ShieldCheck } from "lucide-react";
+import { Bell, BellRing, Camera, Check, KeyRound, ShieldCheck } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
-import { chipClass, primaryPillClass } from "@/components/shared/pill";
+import { chipClass, primaryPillClass, softPillClass } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
-import { notificationPreferences } from "@/features/settings/fixtures/settings.fixture";
 import { updateProfileAction, changePasswordAction } from "@/actions/profile";
+import { registerDeviceTokenAction, updateNotificationPreferenceAction } from "@/actions/notifications";
+import { requestNotificationPermissionAndToken } from "@/lib/firebase-client";
 
 const settingsTabs = ["Profile", "Notifications", "Security"] as const;
 type SettingsTab = (typeof settingsTabs)[number];
@@ -17,8 +18,9 @@ type SettingsTab = (typeof settingsTabs)[number];
 const fieldClass = "mt-2 h-11 w-full rounded-full border border-input bg-background px-4 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
 type Profile = { fullName: string; email: string; phone: string | null; role: string; code: string };
+type NotificationPreferenceItem = { id: string; label: string; detail: string; channelPush: boolean; channelEmail: boolean };
 
-export function SettingsWorkspace({ profile }: { profile: Profile }) {
+export function SettingsWorkspace({ profile, notificationPreferences }: { profile: Profile; notificationPreferences: NotificationPreferenceItem[] }) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("Profile");
 
   return (
@@ -46,7 +48,7 @@ export function SettingsWorkspace({ profile }: { profile: Profile }) {
       </div>
 
       {activeTab === "Profile" ? <ProfilePanel profile={profile} /> : null}
-      {activeTab === "Notifications" ? <NotificationsPanel /> : null}
+      {activeTab === "Notifications" ? <NotificationsPanel initialPreferences={notificationPreferences} /> : null}
       {activeTab === "Security" ? <SecurityPanel /> : null}
     </div>
   );
@@ -132,30 +134,77 @@ function ProfilePanel({ profile }: { profile: Profile }) {
   );
 }
 
-function NotificationsPanel() {
-  const [preferences, setPreferences] = useState(notificationPreferences);
-  const toggle = (id: string) => setPreferences((current) => current.map((preference) => (preference.id === id ? { ...preference, enabled: !preference.enabled } : preference)));
+function NotificationsPanel({ initialPreferences }: { initialPreferences: NotificationPreferenceItem[] }) {
+  const [preferences, setPreferences] = useState(initialPreferences);
+  const [pushStatus, setPushStatus] = useState<"idle" | "pending" | "enabled" | "error">("idle");
+  const [pushError, setPushError] = useState<string | null>(null);
+
+  const toggle = (id: string, channel: "channelPush" | "channelEmail") => {
+    const current = preferences.find((preference) => preference.id === id);
+    if (!current) return;
+    const next = { ...current, [channel]: !current[channel] };
+    setPreferences((list) => list.map((preference) => (preference.id === id ? next : preference)));
+    updateNotificationPreferenceAction({ categoryId: id, channelPush: next.channelPush, channelEmail: next.channelEmail });
+  };
+
+  const enablePush = async () => {
+    setPushStatus("pending");
+    setPushError(null);
+    const result = await requestNotificationPermissionAndToken();
+    if (!result.ok) {
+      setPushStatus("error");
+      setPushError(result.error);
+      return;
+    }
+    await registerDeviceTokenAction({ token: result.token, userAgent: navigator.userAgent });
+    setPushStatus("enabled");
+  };
 
   return (
-    <Surface>
-      <SurfaceHeader>
-        <SurfaceTitle>Notifications</SurfaceTitle>
-        <span className="grid size-10 place-items-center rounded-full bg-accent text-primary">
-          <Bell className="size-4" strokeWidth={1.75} />
+    <div className="space-y-4 lg:space-y-5">
+      <Surface className="flex items-center gap-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent text-primary">
+          <BellRing className="size-5" strokeWidth={1.75} />
         </span>
-      </SurfaceHeader>
-      <ul className="mt-5 divide-y divide-border">
-        {preferences.map((preference) => (
-          <li key={preference.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
-            <div className="min-w-0">
-              <p className="text-sm font-bold">{preference.label}</p>
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{preference.detail}</p>
-            </div>
-            <Switch checked={preference.enabled} onCheckedChange={() => toggle(preference.id)} aria-label={preference.label} />
-          </li>
-        ))}
-      </ul>
-    </Surface>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">Browser push notifications</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Get notified on this device even when Bekur isn&apos;t open.</p>
+          {pushError ? <p className="mt-1 text-xs font-semibold text-destructive">{pushError}</p> : null}
+        </div>
+        <button type="button" disabled={pushStatus === "pending" || pushStatus === "enabled"} onClick={enablePush} className={cn(softPillClass, "h-10 shrink-0 px-4 text-xs disabled:pointer-events-none disabled:opacity-70")}>
+          {pushStatus === "enabled" ? "Enabled" : pushStatus === "pending" ? "Enabling…" : "Enable"}
+        </button>
+      </Surface>
+
+      <Surface>
+        <SurfaceHeader>
+          <SurfaceTitle>Notifications</SurfaceTitle>
+          <span className="grid size-10 place-items-center rounded-full bg-accent text-primary">
+            <Bell className="size-4" strokeWidth={1.75} />
+          </span>
+        </SurfaceHeader>
+        <ul className="mt-5 divide-y divide-border">
+          {preferences.map((preference) => (
+            <li key={preference.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold">{preference.label}</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{preference.detail}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-4">
+                <div className="flex flex-col items-center gap-1">
+                  <span aria-hidden className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">Push</span>
+                  <Switch checked={preference.channelPush} onCheckedChange={() => toggle(preference.id, "channelPush")} aria-label={`${preference.label} push`} />
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <span aria-hidden className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">Email</span>
+                  <Switch checked={preference.channelEmail} onCheckedChange={() => toggle(preference.id, "channelEmail")} aria-label={`${preference.label} email`} />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Surface>
+    </div>
   );
 }
 

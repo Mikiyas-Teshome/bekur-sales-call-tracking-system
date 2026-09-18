@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { signOutWithPushCleanup } from "@/lib/sign-out";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, LogOut, X } from "lucide-react";
@@ -85,7 +85,7 @@ export function NavigationDock({ open, onOpenChange }: { open: boolean; onOpenCh
           <ThemeToggle tone="ink" />
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => signOutWithPushCleanup({ callbackUrl: "/login" })}
             className="flex h-12 w-full items-center gap-3 rounded-full pr-4 pl-1.5 text-sm font-semibold text-canvas-muted transition-colors hover:bg-white/6 hover:text-canvas-foreground"
           >
             <span className="grid size-9 place-items-center rounded-full bg-white/6">

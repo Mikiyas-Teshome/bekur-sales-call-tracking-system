@@ -91,6 +91,28 @@ export async function getFollowUps() {
   });
 }
 
+export async function getOverdueLeadsByAssignee() {
+  const dataSource = await getDataSource();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const rows = await dataSource
+    .getRepository(Client)
+    .createQueryBuilder("client")
+    .select("client.currentAssignedUserId", "userId")
+    .addSelect("COUNT(*)", "count")
+    .where("client.pipelineStage NOT IN (:...closed)", { closed: [PipelineStage.CLOSED_WON, PipelineStage.CLOSED_LOST] })
+    .andWhere("client.currentAssignedUserId IS NOT NULL")
+    .andWhere((qb) => {
+      const subQuery = qb.subQuery().select("MAX(c.nextFollowUpDate)").from(Call, "c").where("c.clientId = client.id").andWhere("c.nextFollowUpDate IS NOT NULL").getQuery();
+      return `(${subQuery}) < :today`;
+    })
+    .setParameter("today", today)
+    .groupBy("client.currentAssignedUserId")
+    .getRawMany<{ userId: number; count: string }>();
+
+  return rows.map((row) => ({ userId: row.userId, count: Number(row.count) }));
+}
+
 export async function getAttentionCounts() {
   const dataSource = await getDataSource();
   const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000);

@@ -39,10 +39,10 @@ export async function logCall(input: {
 }) {
   const dataSource = await getDataSource();
 
-  return dataSource.transaction(async (manager) => {
+  const call = await dataSource.transaction(async (manager) => {
     const client = await manager.getRepository(Client).findOneOrFail({ where: { id: input.clientId }, relations: { campaign: true } });
 
-    const call = await manager.getRepository(Call).save(
+    const savedCall = await manager.getRepository(Call).save(
       manager.getRepository(Call).create({
         clientId: client.id,
         loggedByUserId: input.loggedByUserId,
@@ -60,6 +60,19 @@ export async function logCall(input: {
     client.pipelineStage = input.pipelineStageAfter;
     await manager.getRepository(Client).save(client);
 
-    return call;
+    return { savedCall, clientName: client.displayName };
   });
+
+  if (input.pipelineStageAfter === PipelineStage.CLOSED_WON) {
+    try {
+      const { listUserIdsWithPermission } = await import("@/services/roles.service");
+      const { notify } = await import("@/services/notifications.service");
+      const managerIds = (await listUserIdsWithPermission("dashboard:view_team_scope")).filter((id) => id !== input.loggedByUserId);
+      if (managerIds.length) await notify(managerIds, "team-activity", { title: "Deal closed 🎉", body: `${call.clientName} was just marked Closed Won.`, url: "/leads" });
+    } catch (error) {
+      console.error("Team activity notification failed", error);
+    }
+  }
+
+  return call.savedCall;
 }

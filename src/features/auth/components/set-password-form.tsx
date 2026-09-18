@@ -15,16 +15,17 @@ type SetPasswordFormProps = {
   successTitle: string;
   successDescription: string;
   icon: LucideIcon;
+  onSubmit: (password: string) => Promise<{ ok: boolean; error?: string }>;
 };
 
-export function SetPasswordForm({ heading, description, submitLabel, successTitle, successDescription, icon: Icon }: SetPasswordFormProps) {
+export function SetPasswordForm({ heading, description, submitLabel, successTitle, successDescription, icon: Icon, onSubmit }: SetPasswordFormProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!password.trim() || !confirmPassword.trim()) {
       setError("Fill in both password fields.");
@@ -40,10 +41,13 @@ export function SetPasswordForm({ heading, description, submitLabel, successTitl
     }
     setError(null);
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
-      setDone(true);
-    }, 700);
+    const result = await onSubmit(password);
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error ?? "Something went wrong. Try again.");
+      return;
+    }
+    setDone(true);
   };
 
   if (done) {

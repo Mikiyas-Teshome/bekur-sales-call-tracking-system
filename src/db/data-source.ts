@@ -21,4 +21,6 @@ let initialization: Promise<DataSource> | null = null;
 
 export function getDataSource() {
   if (AppDataSource.isInitialized) return Promise.resolve(AppDataSource);
-  if (!initialization) initialization = AppData
+  if (!initialization) initialization = AppDataSource.initialize();
+  return initialization;
+}

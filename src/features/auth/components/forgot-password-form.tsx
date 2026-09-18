@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowLeft, Loader2, Mail, MailCheck } from "lucide-react";
 import { primaryPillClass } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
+import { requestPasswordResetAction } from "@/actions/auth";
 
 const fieldClass = "mt-2 h-11 w-full rounded-full border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
 
@@ -14,7 +15,7 @@ export function ForgotPasswordForm() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!email.trim()) {
       setError("Enter the email on your account.");
@@ -22,10 +23,9 @@ export function ForgotPasswordForm() {
     }
     setError(null);
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
-      setSent(true);
-    }, 700);
+    await requestPasswordResetAction({ email });
+    setLoading(false);
+    setSent(true);
   };
 
   if (sent) {
