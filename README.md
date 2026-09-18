@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bekur — Sales Call Tracker
 
-## Getting Started
+A mobile-first sales operations workspace for teams running ad-driven lead generation (Facebook/Instagram → WhatsApp/phone). Reps work a lead list, log call outcomes, and move deals through a pipeline; managers track campaigns, projects, and team performance.
 
-First, run the development server:
+## Stack
+
+- **Framework:** Next.js 16 (App Router, Turbopack, React 19)
+- **Database:** PostgreSQL (Neon) via TypeORM
+- **Auth:** NextAuth v5 (Credentials provider, JWT sessions) with a fully dynamic role/permission system
+- **Email:** Resend + React Email, for invites, password resets, and notification digests
+- **Push notifications:** Firebase Cloud Messaging (web push), with per-category user preferences
+- **Validation:** Zod v4
+- **Styling:** Tailwind CSS v4
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env   # fill in the values described below
+npm run migration:run  # applies all migrations to your database
+npm run db:seed        # creates an admin user and sample data
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app runs at [http://localhost:3000](http://localhost:3000). The seed script prints the admin login it creates.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Direct Postgres connection — used for migrations |
+| `DATABASE_URL_POOLED` | Pooled Postgres connection — used at runtime |
+| `AUTH_SECRET` | NextAuth session signing secret |
+| `AUTH_URL` | Canonical app URL NextAuth expects (e.g. `http://localhost:3000`) |
+| `NEXT_PUBLIC_APP_URL` | Public app URL used to build links in emails |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Transactional email (invites, password resets, digests) |
+| `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` | Firebase Admin SDK (server-side push sending) |
+| `NEXT_PUBLIC_FIREBASE_*` | Firebase web app config (client-side push registration) — also duplicated by hand into `public/firebase-messaging-sw.js`, since service workers can't read env vars |
+| `CRON_SECRET` | Shared secret that protects the `/api/cron/*` routes |
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm run build` / `npm run start` | Production build / serve |
+| `npm run lint` | Lint the codebase |
+| `npm run migration:generate -- src/db/migrations/<Name>` | Generate a migration from entity changes |
+| `npm run migration:run` | Apply pending migrations |
+| `npm run migration:revert` | Roll back the last migration |
+| `npm run db:seed` | Seed an admin user and sample data |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Key features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Leads & calls** — lead list with filters, bulk reassignment, call logging, and per-lead history
+- **Projects & campaigns** — attribution and spend tracking per acquisition source
+- **Dynamic roles & permissions** — admins create roles and control exactly which of ~25 permissions each one has, at `/team/roles`; the built-in Administrator role is protected from lockout
+- **Team management** — invite (via email, one-time activation link), change role, manage a member's lead assignments, deactivate
+- **Notifications** — push (Firebase) and email (Resend) per category, with a user-facing preference panel and scheduled digests via Vercel Cron
+- **Reports** — pipeline, conversion, and team performance views
 
-## Deploy on Vercel
+## Project structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+  app/            App Router routes, layouts, and API/cron route handlers
+  actions/        Server Actions — validate input, call a service, revalidate
+  services/       Business logic and TypeORM queries
+  entities/       TypeORM entity definitions
+  db/             DataSource setup, migrations, seed script
+  features/       Domain UI grouped by capability (leads, team, campaigns, …)
+  components/     Shared, domain-agnostic UI (shell, primitives)
+  emails/         React Email templates sent via Resend
+  lib/            Cross-cutting utilities (auth, permissions, Firebase, etc.)
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Deployment
+
+Built for Vercel. `vercel.json` schedules the overdue-follow-ups and weekly-digest cron jobs; both routes require the `CRON_SECRET` header to run.
