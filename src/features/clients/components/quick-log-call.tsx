@@ -27,6 +27,7 @@ function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) 
   const [outcome, setOutcome] = useState(callOutcomes[0]);
   const [stage, setStage] = useState("Qualified");
   const [followUp, setFollowUp] = useState("");
+  const [calledAt, setCalledAt] = useState(new Date().toISOString().slice(0, 16));
   const [note, setNote] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +43,7 @@ function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) 
         outcomeNote: note,
         pipelineStageAfter: stage as PipelineStage,
         nextFollowUpDate: followUp || undefined,
+        calledAt: calledAt || undefined,
       });
       if (!result.ok) {
         setError(result.error);
@@ -103,6 +105,18 @@ function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) 
         <Textarea id="note" value={note} onChange={(event) => setNote(event.target.value)} className="mt-2 min-h-24 rounded-2xl bg-background" placeholder="What happened on the call?" />
       </fieldset>
       <div className="grid gap-4 sm:grid-cols-2">
+        <fieldset>
+          <label className="text-sm font-bold" htmlFor="called-at">
+            Call time
+          </label>
+          <input
+            id="called-at"
+            type="datetime-local"
+            value={calledAt}
+            onChange={(event) => setCalledAt(event.target.value)}
+            className="mt-2 h-11 w-full rounded-full border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+        </fieldset>
         <fieldset>
           <label className="text-sm font-bold" htmlFor="stage">
             Pipeline stage

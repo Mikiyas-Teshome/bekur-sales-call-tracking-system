@@ -1,6 +1,6 @@
 import "server-only";
 import { getDataSource } from "@/db/data-source";
-import { DeviceToken, NotificationPreference, User } from "@/entities";
+import { DeviceToken, NotificationPreference, User, UserNotification } from "@/entities";
 import { categoryDefaults, notificationCategories } from "@/lib/notification-categories";
 import { sendPushToUser } from "@/lib/firebase-admin";
 import { sendEmail } from "@/lib/resend";
@@ -20,6 +20,17 @@ export async function notify(userIds: number[], categoryId: string, payload: { t
       const pref = prefByUser.get(userId);
       const channelPush = pref?.channelPush ?? defaults.channelPush;
       const channelEmail = pref?.channelEmail ?? defaults.channelEmail;
+
+      await dataSource.getRepository(UserNotification).save(
+        dataSource.getRepository(UserNotification).create({
+          userId,
+          category: categoryId,
+          title: payload.title,
+          body: payload.body,
+          url: payload.url ?? null,
+          isRead: false,
+        }),
+      );
 
       if (channelPush) {
         try {
@@ -60,6 +71,20 @@ export async function registerDeviceToken(userId: number, token: string, userAge
 export async function unregisterDeviceToken(userId: number, token: string) {
   const dataSource = await getDataSource();
   await dataSource.getRepository(DeviceToken).delete({ userId, token });
+}
+
+export async function listUserNotifications(userId: number, limit = 20) {
+  const dataSource = await getDataSource();
+  return dataSource.getRepository(UserNotification).find({
+    where: { userId },
+    order: { createdAt: "DESC" },
+    take: limit,
+  });
+}
+
+export async function markUserNotificationRead(userId: number, notificationId: number) {
+  const dataSource = await getDataSource();
+  await dataSource.getRepository(UserNotification).update({ id: notificationId, userId }, { isRead: true, readAt: new Date() });
 }
 
 export async function listNotificationPreferences(userId: number) {

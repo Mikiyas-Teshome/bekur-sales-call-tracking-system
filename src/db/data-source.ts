@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import "pg";
 import { DataSource } from "typeorm";
-import { AuditLog, AuthToken, Call, Campaign, Client, ClientAssignment, DeviceToken, NotificationPreference, Permission, Project, Role, User } from "../entities";
+import { AuditLog, AuthToken, Call, Campaign, Client, ClientAssignment, DeviceToken, NotificationPreference, Permission, Project, Role, User, UserNotification } from "../entities";
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -16,7 +16,7 @@ export const AppDataSource = new DataSource({
   type: "postgres",
   url: connectionUrl,
   ssl: isLocalConnection ? false : { rejectUnauthorized: false },
-  entities: [User, Role, Permission, Project, Campaign, Client, ClientAssignment, Call, AuditLog, AuthToken, DeviceToken, NotificationPreference],
+  entities: [User, Role, Permission, Project, Campaign, Client, ClientAssignment, Call, AuditLog, AuthToken, DeviceToken, NotificationPreference, UserNotification],
   synchronize: false,
   logging: false,
 });

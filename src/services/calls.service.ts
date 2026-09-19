@@ -1,6 +1,7 @@
 import "server-only";
 import { getDataSource } from "@/db/data-source";
 import { Call, CallOutcome, Client, PipelineStage } from "@/entities";
+import { resolveCallTimestamp } from "@/lib/call-timestamp";
 import { paginate, type Paginated } from "@/lib/pagination";
 
 export type CallLogRow = {
@@ -106,6 +107,7 @@ export async function logCall(input: {
   pipelineStageAfter: PipelineStage;
   dealValue: string | null;
   nextFollowUpDate: string | null;
+  calledAt?: string | null;
 }) {
   const dataSource = await getDataSource();
 
@@ -118,7 +120,7 @@ export async function logCall(input: {
         loggedByUserId: input.loggedByUserId,
         campaignId: client.campaignId,
         projectId: client.campaign.projectId,
-        calledAt: new Date(),
+        calledAt: resolveCallTimestamp(input.calledAt),
         outcome: input.outcome,
         outcomeNote: input.outcomeNote,
         pipelineStageAfter: input.pipelineStageAfter,

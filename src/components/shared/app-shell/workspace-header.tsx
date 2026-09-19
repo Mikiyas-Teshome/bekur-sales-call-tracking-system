@@ -2,12 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Bell, Menu, Moon, Plus, Search, Sun } from "lucide-react";
+import { Menu, Moon, Plus, Search, Sun } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { primaryPillClass } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
 import { useLauncher } from "./launcher-context";
 import { pageTitleFor } from "./navigation";
+import { NotificationsMenu } from "./notifications-menu";
 import { UserMenu } from "./user-menu";
 
 export const circleButtonClass =
@@ -18,14 +19,7 @@ export const pillButtonClass = cn(primaryPillClass, "h-11 px-5 text-sm");
 function NotificationsButton() {
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          <button type="button" aria-label="Notifications" className={cn(circleButtonClass, "relative")}>
-            <Bell className="size-5" strokeWidth={1.75} />
-            <span className="absolute top-3 right-3 size-2 rounded-full bg-primary ring-2 ring-muted" />
-          </button>
-        }
-      />
+      <TooltipTrigger render={<NotificationsMenu />} />
       <TooltipContent sideOffset={8}>Notifications</TooltipContent>
     </Tooltip>
   );

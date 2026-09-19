@@ -11,3 +11,4 @@ export { AuditLog } from "./audit-log.entity";
 export { AuthToken } from "./auth-token.entity";
 export { DeviceToken } from "./device-token.entity";
 export { NotificationPreference } from "./notification-preference.entity";
+export { UserNotification } from "./user-notification.entity";

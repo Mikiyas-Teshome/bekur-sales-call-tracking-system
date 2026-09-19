@@ -14,6 +14,7 @@ const logCallSchema = z.object({
   pipelineStageAfter: z.enum(PipelineStage),
   dealValue: z.string().optional(),
   nextFollowUpDate: z.string().optional(),
+  calledAt: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)).optional(),
 });
 
 export async function logCallAction(input: z.infer<typeof logCallSchema>) {
@@ -32,6 +33,7 @@ export async function logCallAction(input: z.infer<typeof logCallSchema>) {
     pipelineStageAfter: parsed.data.pipelineStageAfter,
     dealValue: parsed.data.dealValue || null,
     nextFollowUpDate: parsed.data.nextFollowUpDate || null,
+    calledAt: parsed.data.calledAt ?? undefined,
   });
 
   revalidatePath("/");

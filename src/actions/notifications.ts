@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission, requireUser } from "@/lib/require-user";
-import { registerDeviceToken, unregisterDeviceToken, updateNotificationPreference } from "@/services/notifications.service";
+import { listUserNotifications, markUserNotificationRead, registerDeviceToken, unregisterDeviceToken, updateNotificationPreference } from "@/services/notifications.service";
 
 const registerDeviceTokenSchema = z.object({ token: z.string().min(1), userAgent: z.string().optional() });
 
@@ -36,5 +36,28 @@ export async function updateNotificationPreferenceAction(input: z.infer<typeof u
   const user = await requirePermission("notifications:manage_own");
   await updateNotificationPreference(user.id, parsed.data.categoryId, { channelPush: parsed.data.channelPush, channelEmail: parsed.data.channelEmail });
   revalidatePath("/settings");
+  return { ok: true as const };
+}
+
+export async function listUserNotificationsAction(limit = 20) {
+  const user = await requireUser();
+  const notifications = await listUserNotifications(user.id, limit);
+  return {
+    ok: true as const,
+    notifications: notifications.map((notification) => ({
+      id: notification.id,
+      category: notification.category,
+      title: notification.title,
+      body: notification.body,
+      url: notification.url,
+      isRead: notification.isRead,
+      createdAt: notification.createdAt.toISOString(),
+    })),
+  };
+}
+
+export async function markUserNotificationReadAction(input: { notificationId: number }) {
+  const user = await requireUser();
+  await markUserNotificationRead(user.id, input.notificationId);
   return { ok: true as const };
 }
