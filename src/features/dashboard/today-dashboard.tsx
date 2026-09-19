@@ -1,13 +1,15 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight, ChevronRight, CircleAlert, Clock3, Phone, Plus, TrendingUp, UserRound } from "lucide-react";
+
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
 import { chipClass, primaryPillClass, softPillClass } from "@/components/shared/pill";
-import { cn } from "@/lib/utils";
 import { useRolePreview } from "@/components/shared/role-preview";
+import { cn } from "@/lib/utils";
 import { hasPermission } from "@/lib/permissions";
+
 import type { TodayScope } from "./fixtures/today.fixture";
 
 const toneClasses = {
@@ -32,12 +34,247 @@ export type TodayDashboardView = {
   contactRate: number;
 };
 
-export function TodayDashboard({ view }: { view: TodayDashboardView }) {
+export function TodayDashboard({ view }: { view: TodayDashboardView | null }) {
   const { effectivePermissions } = useRolePreview();
+  const safeView = view ?? {
+    todayKpis: [],
+    todayFollowUps: [],
+    attentionItems: [],
+    recentCalls: [],
+    pipelineMomentum: [],
+    weeklyCalls: [0, 0, 0, 0, 0, 0, 0],
+    weeklyDayLabels: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    callsThisWeekTotal: 0,
+    revenueWon: 0,
+    contactRate: 0,
+  };
+
   const canSeeTeamScope = hasPermission(effectivePermissions, "dashboard:view_team_scope");
   const [requestedScope, setScope] = useState<TodayScope>("My performance");
   const scope = canSeeTeamScope ? requestedScope : "My performance";
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
-  return <div className="space-y-4 lg:space-y-5"><section className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-end sm:justify-between lg:pt-0"><div><p className="text-sm font-medium text-primary">{today}</p><h2 className="mt-1 text-2xl font-bold tracking-tight">Today&apos;s command center</h2><p className="mt-1 text-sm text-muted-foreground">Focus on the conversations most likely to move forward.</p></div><div className="flex gap-2"><label className={cn(softPillClass, "h-11 px-4 text-sm")}><UserRound className="size-4" strokeWidth={1.75} /><span className="sr-only">Dashboard scope</span><select aria-label="Dashboard scope" value={scope} onChange={(event) => setScope(event.target.value as TodayScope)} className="appearance-none bg-transparent outline-none"><option>My performance</option>{canSeeTeamScope ? <><option>Team performance</option><option>All workspace</option></> : null}</select></label><Link href="/leads" className={cn(primaryPillClass, "h-11 px-5 text-sm")}><Plus className="size-4" strokeWidth={2.5} />Log a call</Link></div></section><Surface tone="primary" className="overflow-hidden"><div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-sm font-medium text-white/75">Workspace pulse · {scope}</p><h3 className="mt-2 text-[40px] leading-none font-bold tracking-tight">{currency.format(view.revenueWon)}</h3><p className="mt-3 inline-flex items-center gap-1.5 text-sm text-white/85"><ArrowUpRight className="size-4" strokeWidth={2.25} />{view.contactRate}% contact rate this week</p></div><div className="rounded-full bg-white/15 px-3 py-2 text-xs font-bold text-white">{view.callsThisWeekTotal} calls this week</div></div><div className="mt-8" aria-label={`Weekly calls completed: ${view.weeklyDayLabels.map((label, index) => `${label} ${view.weeklyCalls[index]}`).join(", ")}`}><div className="flex h-28 items-end gap-2 sm:gap-4">{view.weeklyCalls.map((value, index) => <div key={`${view.weeklyDayLabels[index]}-${index}`} className="flex h-full flex-1 flex-col justify-end gap-2"><div className={cn("rounded-t-full bg-white/30", index === view.weeklyCalls.length - 1 && "bg-white")} style={{ height: `${value}%` }} /><span className="text-center text-[10px] font-medium text-white/65">{view.weeklyDayLabels[index]}</span></div>)}</div><div className="mt-5 flex flex-wrap items-center gap-4 border-t border-white/20 pt-4 text-xs text-white/75"><span className="inline-flex items-center gap-2"><span className="size-2 rounded-full bg-white" />{view.callsThisWeekTotal} calls completed this week</span></div></div></Surface><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{view.todayKpis.map((kpi) => <Surface key={kpi.label} className="p-4"><p className="text-sm text-muted-foreground">{kpi.label}</p><div className="mt-4 flex items-end justify-between gap-3"><p className="text-[32px] leading-none font-bold tracking-tight">{kpi.value}</p>{kpi.delta ? <span className="inline-flex items-center gap-1 text-xs font-bold text-success"><ArrowUpRight className="size-3.5" strokeWidth={2.25} />{kpi.delta}</span> : null}</div><p className="mt-2 text-xs text-muted-foreground">{kpi.detail}</p></Surface>)}</section><section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-5"><Surface><SurfaceHeader><div><SurfaceTitle>Due today and overdue</SurfaceTitle><p className="mt-1 text-sm text-muted-foreground">The next conversations to move.</p></div><Link href="/leads" className="text-sm font-semibold text-muted-foreground hover:text-foreground">View all</Link></SurfaceHeader>{view.todayFollowUps.length ? <ul className="mt-5 space-y-1">{view.todayFollowUps.map((followUp) => <li key={followUp.clientCode} className="flex items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors hover:bg-muted/70"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-primary">{followUp.initials}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{followUp.name}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{followUp.company} · {followUp.stage}</p></div><span className={cn("hidden text-xs font-bold sm:block", toneClasses[followUp.tone as keyof typeof toneClasses])}>{followUp.due}</span><Link href={`/leads/${followUp.clientCode}`} aria-label={`Call ${followUp.name}`} className={cn(primaryPillClass, "grid size-11 shrink-0 place-items-center rounded-full p-0")}><Phone className="size-5" strokeWidth={1.75} /></Link></li>)}</ul> : <p className="mt-5 text-sm text-muted-foreground">No follow-ups scheduled. Nice work staying on top of the pipeline.</p>}</Surface><Surface><SurfaceHeader><div><SurfaceTitle>Needs attention</SurfaceTitle><p className="mt-1 text-sm text-muted-foreground">Saved operational views</p></div><CircleAlert className="size-5 text-warning" strokeWidth={1.75} /></SurfaceHeader><div className="mt-5 space-y-3">{view.attentionItems.map((item) => <Link href="/leads" key={item.label} className="flex items-center gap-3 rounded-2xl p-3 transition-colors hover:bg-muted/70"><span className={cn("grid size-10 shrink-0 place-items-center rounded-full text-sm font-bold", toneClasses[item.tone as keyof typeof toneClasses])}>{item.count}</span><span className="min-w-0 flex-1"><span className="block text-sm font-bold">{item.label}</span><span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{item.detail}</span></span><ChevronRight className="size-4 text-muted-foreground" strokeWidth={1.75} /></Link>)}</div></Surface></section><section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-5"><Surface><SurfaceHeader><div><SurfaceTitle>Recent activity</SurfaceTitle><p className="mt-1 text-sm text-muted-foreground">The latest calls across your workspace.</p></div><Clock3 className="size-5 text-muted-foreground" strokeWidth={1.75} /></SurfaceHeader>{view.recentCalls.length ? <ul className="mt-5 space-y-1">{view.recentCalls.map((call, index) => <li key={`${call.name}-${index}`} className="flex items-start gap-3 rounded-2xl px-2 py-2.5"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-primary">{call.initials}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-bold">{call.name}</p><span className={cn(chipClass, toneClasses[call.tone as keyof typeof toneClasses])}>{call.outcome}</span></div><p className="mt-1 text-sm leading-5 text-muted-foreground">{call.note}</p></div><time className="shrink-0 text-xs text-muted-foreground">{call.time}</time></li>)}</ul> : <p className="mt-5 text-sm text-muted-foreground">No calls logged yet.</p>}</Surface><Surface><SurfaceHeader><div><SurfaceTitle>Pipeline momentum</SurfaceTitle><p className="mt-1 text-sm text-muted-foreground">Open opportunities by stage</p></div><TrendingUp className="size-5 text-primary" strokeWidth={1.75} /></SurfaceHeader><div className="mt-5 space-y-4">{view.pipelineMomentum.map((stage) => <div key={stage.label}><div className="mb-2 flex justify-between text-xs"><span className="font-semibold">{stage.label}</span><span className="font-bold tabular-nums">{stage.value}</span></div><div className="h-2.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: stage.width }} /></div></div>)}</div><Link href="/reports" className={cn(softPillClass, "mt-6 h-11 w-full text-sm")}>Open reports<ChevronRight className="size-4" strokeWidth={1.75} /></Link></Surface></section></div>;
+  return (
+    <div className="space-y-4 lg:space-y-5">
+      <section className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-end sm:justify-between lg:pt-0">
+        <div>
+          <p className="text-sm font-medium text-primary">{today}</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight">Today&apos;s command center</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Focus on the conversations most likely to move forward.</p>
+        </div>
+
+        <div className="flex gap-2">
+          <label className={cn(softPillClass, "h-11 px-4 text-sm")}>
+            <UserRound className="size-4" strokeWidth={1.75} />
+            <span className="sr-only">Dashboard scope</span>
+            <select
+              aria-label="Dashboard scope"
+              value={scope}
+              onChange={(event) => setScope(event.target.value as TodayScope)}
+              className="appearance-none bg-transparent outline-none"
+            >
+              <option>My performance</option>
+              {canSeeTeamScope ? (
+                <>
+                  <option>Team performance</option>
+                  <option>All workspace</option>
+                </>
+              ) : null}
+            </select>
+          </label>
+
+          <Link href="/leads" className={cn(primaryPillClass, "h-11 px-5 text-sm")}>
+            <Plus className="size-4" strokeWidth={2.5} />
+            Log a call
+          </Link>
+        </div>
+      </section>
+
+      <Surface tone="primary" className="overflow-hidden">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-white/75">Workspace pulse · {scope}</p>
+            <h3 className="mt-2 text-[40px] leading-none font-bold tracking-tight">{currency.format(safeView.revenueWon)}</h3>
+            <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-white/85">
+              <ArrowUpRight className="size-4" strokeWidth={2.25} />
+              {safeView.contactRate}% contact rate this week
+            </p>
+          </div>
+
+          <div className="rounded-full bg-white/15 px-3 py-2 text-xs font-bold text-white">
+            {safeView.callsThisWeekTotal} calls this week
+          </div>
+        </div>
+
+        <div className="mt-8" aria-label={`Weekly calls completed: ${safeView.weeklyDayLabels.map((label, index) => `${label} ${safeView.weeklyCalls[index]}`).join(", ")}`}>
+          <div className="flex h-28 items-end gap-2 sm:gap-4">
+            {safeView.weeklyCalls.map((value, index) => (
+              <div key={`${safeView.weeklyDayLabels[index]}-${index}`} className="flex h-full flex-1 flex-col justify-end gap-2">
+                <div className="w-full rounded-full bg-white/15" style={{ height: `${Math.max(8, value)}%` }} />
+                <span className="text-center text-[10px] font-medium text-white/70">{safeView.weeklyDayLabels[index]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Surface>
+
+      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+        <Surface>
+          <SurfaceHeader>
+            <SurfaceTitle>Performance snapshot</SurfaceTitle>
+            <button className={cn(softPillClass, "h-9 px-3 text-xs")}>This week</button>
+          </SurfaceHeader>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {safeView.todayKpis.length > 0 ? (
+              safeView.todayKpis.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-border bg-muted/40 p-4">
+                  <p className="text-sm text-muted-foreground">{item.label}</p>
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <span className="text-2xl font-bold tracking-tight">{item.value}</span>
+                    {item.delta ? <span className={cn(chipClass, toneClasses.primary)}>{item.delta}</span> : null}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{item.detail}</p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground md:col-span-2">
+                No data available yet.
+              </div>
+            )}
+          </div>
+        </Surface>
+
+        <Surface>
+          <SurfaceHeader>
+            <SurfaceTitle>Attention</SurfaceTitle>
+            <TrendingUp className="size-4 text-muted-foreground" />
+          </SurfaceHeader>
+
+          <div className="mt-5 space-y-3">
+            {safeView.attentionItems.length > 0 ? (
+              safeView.attentionItems.map((item) => (
+                <div key={item.label} className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
+                  </div>
+                  <span className={cn(chipClass, toneClasses[item.tone as keyof typeof toneClasses] ?? toneClasses.primary)}>{item.count}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No active attention items.</p>
+            )}
+          </div>
+        </Surface>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <Surface>
+          <SurfaceHeader>
+            <SurfaceTitle>Follow-ups</SurfaceTitle>
+            <button className={cn(softPillClass, "h-9 px-3 text-xs")}>View calendar</button>
+          </SurfaceHeader>
+
+          <ul className="mt-5 space-y-3">
+            {safeView.todayFollowUps.length > 0 ? (
+              safeView.todayFollowUps.map((lead) => (
+                <li key={`${lead.name}-${lead.clientCode}`} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {lead.initials}
+                    </div>
+
+                    <div>
+                      <p className="font-medium">{lead.name}</p>
+                      <p className="text-xs text-muted-foreground">{lead.company}</p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">{lead.stage}</p>
+                    <span className={cn(chipClass, toneClasses[lead.tone as keyof typeof toneClasses] ?? toneClasses.primary)}>{lead.due}</span>
+                  </div>
+                </li>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No follow-ups scheduled.</p>
+            )}
+          </ul>
+        </Surface>
+
+        <Surface>
+          <SurfaceHeader>
+            <SurfaceTitle>Recent calls</SurfaceTitle>
+            <Phone className="size-4 text-muted-foreground" />
+          </SurfaceHeader>
+
+          <ul className="mt-5 space-y-3">
+            {safeView.recentCalls.length > 0 ? (
+              safeView.recentCalls.map((call) => (
+                <li key={`${call.name}-${call.time}`} className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {call.initials}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{call.name}</p>
+                      <span className={cn(chipClass, toneClasses[call.tone as keyof typeof toneClasses] ?? toneClasses.primary)}>{call.outcome}</span>
+                      <p className="mt-1 text-xs text-muted-foreground">{call.note || "No summary added."}</p>
+                    </div>
+                  </div>
+
+                  <time className="shrink-0 text-xs text-muted-foreground">{call.time}</time>
+                </li>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No recent activity recorded.</p>
+            )}
+          </ul>
+        </Surface>
+      </div>
+
+      <Surface>
+        <SurfaceHeader>
+          <SurfaceTitle>Pipeline momentum</SurfaceTitle>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Clock3 className="size-4" />
+            Live view
+          </div>
+        </SurfaceHeader>
+
+        <div className="mt-5 space-y-4">
+          {safeView.pipelineMomentum.length > 0 ? (
+            safeView.pipelineMomentum.map((stage) => (
+              <div key={stage.label}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span>{stage.label}</span>
+                  <span className="text-muted-foreground">{stage.value}</span>
+                </div>
+                <div className="h-2.5 rounded-full bg-muted">
+                  <div className="h-2.5 rounded-full bg-primary" style={{ width: stage.width }} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No pipeline activity yet.</p>
+          )}
+        </div>
+
+        <Link href="/reports" className={cn(softPillClass, "mt-6 h-11 w-full text-sm")}>
+          Open reports
+          <ChevronRight className="size-4" strokeWidth={1.75} />
+        </Link>
+      </Surface>
+
+      <div className="flex items-center justify-between rounded-2xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <CircleAlert className="size-4" />
+          Keep an eye on deals that need a follow-up this week.
+        </div>
+        <span className="font-medium text-primary">{safeView.callsThisWeekTotal} calls</span>
+      </div>
+    </div>
+  );
 }

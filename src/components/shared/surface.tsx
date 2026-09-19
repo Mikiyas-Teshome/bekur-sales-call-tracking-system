@@ -12,8 +12,8 @@ export function Surface({ tone = "light", className, ...props }: SurfaceProps) {
       className={cn(
         "min-w-0 rounded-3xl p-5",
         tone === "light"
-          ? "border border-border bg-card text-card-foreground shadow-card"
-          : "bg-[linear-gradient(135deg,var(--primary-deep),var(--primary)_60%,color-mix(in_oklch,var(--primary),white_18%))] text-white shadow-[0_18px_40px_-20px_var(--primary)]",
+          ? "border border-border bg-card text-card-foreground"
+          : "bg-[linear-gradient(135deg,var(--primary-deep),var(--primary)_60%,color-mix(in_oklch,var(--primary),white_18%))] text-white",
         className,
       )}
       {...props}
