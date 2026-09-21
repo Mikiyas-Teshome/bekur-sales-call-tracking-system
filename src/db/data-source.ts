@@ -9,7 +9,23 @@ function requireEnv(name: string) {
   return value;
 }
 
-const connectionUrl = requireEnv("DATABASE_URL_POOLED");
+function normalizeConnectionUrl(value: string) {
+  if (!value) return value;
+
+  try {
+    const parsed = new URL(value);
+    const params = new URLSearchParams(parsed.search);
+    for (const key of ["sslmode", "channel_binding"]) {
+      params.delete(key);
+    }
+    parsed.search = params.toString();
+    return parsed.toString();
+  } catch {
+    return value.replace(/[?&](sslmode|channel_binding)=[^&]+/g, "");
+  }
+}
+
+const connectionUrl = normalizeConnectionUrl(requireEnv("DATABASE_URL_POOLED"));
 const isLocalConnection = /localhost|127\.0\.0\.1/.test(connectionUrl);
 
 export const AppDataSource = new DataSource({
