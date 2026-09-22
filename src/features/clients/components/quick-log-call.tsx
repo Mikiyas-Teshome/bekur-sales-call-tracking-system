@@ -21,6 +21,12 @@ function daysFromNow(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function nowForDatetimeLocal() {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
+
 type QuickLogCallProps = {
   lead: Lead | null;
   open: boolean;
@@ -32,7 +38,7 @@ function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) 
   // Start from the lead's current stage so a call that doesn't move the deal saves without re-picking it.
   const [stage, setStage] = useState<PipelineStage>(pipelineStageValues.has(lead.stage) ? (lead.stage as PipelineStage) : PipelineStage.ATTEMPTED_CONTACT);
   const [followUp, setFollowUp] = useState("");
-  const [calledAt, setCalledAt] = useState(new Date().toISOString().slice(0, 16));
+  const [calledAt, setCalledAt] = useState(nowForDatetimeLocal());
   const [note, setNote] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
