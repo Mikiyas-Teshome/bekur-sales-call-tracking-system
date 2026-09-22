@@ -1,7 +1,7 @@
 import "dotenv/config";
 import "reflect-metadata";
 import { DataSource } from "typeorm";
-import { AuditLog, AuthToken, Call, Campaign, Client, ClientAssignment, DeviceToken, NotificationPreference, Permission, Project, Role, User, UserNotification } from "../entities";
+import { AuditLog, AuthToken, Call, Campaign, Client, ClientAssignment, DeviceToken, KpiTarget, NotificationPreference, Permission, Project, Role, User, UserNotification } from "../entities";
 
 function normalizeConnectionUrl(value?: string) {
   if (!value) return value;
@@ -26,7 +26,7 @@ const migrationDataSource = new DataSource({
   type: "postgres",
   url: migrationUrl,
   ssl: isLocalConnection ? false : { rejectUnauthorized: false },
-  entities: [User, Role, Permission, Project, Campaign, Client, ClientAssignment, Call, AuditLog, AuthToken, DeviceToken, NotificationPreference, UserNotification],
+  entities: [User, Role, Permission, Project, Campaign, Client, ClientAssignment, Call, AuditLog, AuthToken, DeviceToken, NotificationPreference, UserNotification, KpiTarget],
   migrations: ["src/db/migrations/*.ts"],
   synchronize: false,
 });

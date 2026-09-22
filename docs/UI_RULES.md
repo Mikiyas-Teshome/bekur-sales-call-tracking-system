@@ -11,7 +11,7 @@ The dashboard at `/` (`src/features/dashboard/today-dashboard.tsx`) is the real 
 | Design tokens | `src/app/globals.css` | The only place colors, radii, shadows, and fonts are defined. |
 | Fonts | `src/app/layout.tsx` | Plus Jakarta Sans (`--font-jakarta`) for everything; Geist Mono (`--font-geist-mono`) for code only. |
 | Card surfaces | `src/components/shared/surface.tsx` | `Surface`, `SurfaceHeader`, `SurfaceTitle`. |
-| Buttons and chips | `src/components/shared/pill.ts` | `primaryPillClass`, `softPillClass`, `chipClass`. |
+| Buttons and chips | `src/components/shared/pill.ts` | `primaryPillClass`, `softPillClass`, `chipClass`, `toneChipClasses` (status chip colors keyed by the `StatusTone` returned from `pipelineStageTone` / `callOutcomeTone` in `src/entities/enums.ts` — use these instead of per-component stage/outcome color maps). |
 | Circle icon buttons | `src/components/shared/app-shell/workspace-header.tsx` | `circleButtonClass`, `pillButtonClass` (re-exported from `@/components/shared/app-shell`). |
 | Filter dropdowns | `src/components/shared/filter-menu.tsx` | `FilterMenu` — a popover with checkmarks on `md+`, a native `<select>` pill below it. Use for every filter/sort control; never hand-roll another dropdown. |
 | Multi-field dialogs | `src/components/shared/responsive-dialog.tsx` | `ResponsiveDialog` — a centered dialog on `md+`, a draggable bottom sheet on mobile, exactly one mounted overlay root (switched by `useMediaQuery`, not by hiding one visually). Use for every dialog with more than one or two actions: forms, multi-step content, anything that could be tall. A single-action confirmation can stay a plain `Dialog`. |

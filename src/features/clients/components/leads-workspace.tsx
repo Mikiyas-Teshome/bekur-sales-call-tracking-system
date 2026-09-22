@@ -216,7 +216,7 @@ export function LeadsWorkspace({
 
       <QuickLogCall lead={loggingLead} open={logOpen} onOpenChange={setLogOpen} />
       <ReassignDialog leads={selectedLeads} assignableReps={assignableReps} open={reassignOpen} onOpenChange={setReassignOpen} onDone={() => setSelectedIds(new Set())} />
-      <CreateLeadDialog open={createOpen} onOpenChange={setCreateOpen} campaignOptions={campaignOptions} />
+      <CreateLeadDialog open={createOpen} onOpenChange={setCreateOpen} campaignOptions={campaignOptions} assignableReps={canReassign ? assignableReps : []} />
       <EditLeadDialog key={editingLead?.id} lead={editingLead} onClose={() => setEditingLead(null)} />
     </div>
   );
@@ -317,8 +317,9 @@ function LeadMobileRow({ lead, onLog, onEdit, canReassign, selected, onToggleSel
   );
 }
 
-function CreateLeadDialog({ open, onOpenChange, campaignOptions }: { open: boolean; onOpenChange: (open: boolean) => void; campaignOptions: CampaignOption[] }) {
+function CreateLeadDialog({ open, onOpenChange, campaignOptions, assignableReps }: { open: boolean; onOpenChange: (open: boolean) => void; campaignOptions: CampaignOption[]; assignableReps: AssignableRep[] }) {
   const [displayName, setDisplayName] = useState("");
+  const [assigneeCode, setAssigneeCode] = useState("");
   const [phone, setPhone] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [campaignCode, setCampaignCode] = useState(campaignOptions[0]?.code ?? "");
@@ -333,6 +334,7 @@ function CreateLeadDialog({ open, onOpenChange, campaignOptions }: { open: boole
       setPhone("");
       setBusinessName("");
       setCampaignCode(campaignOptions[0]?.code ?? "");
+      setAssigneeCode("");
       setError(null);
     }
   };
@@ -340,7 +342,7 @@ function CreateLeadDialog({ open, onOpenChange, campaignOptions }: { open: boole
   const submit = () => {
     setError(null);
     startTransition(async () => {
-      const result = await createClientAction({ displayName, phone, businessName: businessName || undefined, campaignCode });
+      const result = await createClientAction({ displayName, phone, businessName: businessName || undefined, campaignCode, assigneeCode: assigneeCode || undefined });
       if (!result.ok) {
         setError(result.error);
         return;
@@ -375,6 +377,19 @@ function CreateLeadDialog({ open, onOpenChange, campaignOptions }: { open: boole
             ))}
           </select>
         </label>
+        {assignableReps.length ? (
+          <label className="block text-sm font-bold">
+            Assign to
+            <select value={assigneeCode} onChange={(event) => setAssigneeCode(event.target.value)} className="mt-2 h-11 w-full appearance-none rounded-full border border-input bg-background px-4 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+              <option value="">Unassigned</option>
+              {assignableReps.map((rep) => (
+                <option key={rep.code} value={rep.code}>
+                  {rep.name} · {rep.role}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {error ? <p className="text-sm font-semibold text-destructive">{error}</p> : null}
         <button type="button" disabled={pending || !displayName.trim() || !phone.trim() || !campaignCode} onClick={submit} className={cn(primaryPillClass, "h-12 w-full text-sm disabled:pointer-events-none disabled:opacity-50")}>
           <Plus className="size-4" strokeWidth={2.25} />

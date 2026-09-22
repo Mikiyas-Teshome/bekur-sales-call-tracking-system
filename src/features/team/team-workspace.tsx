@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Mail, MoreHorizontal, Search, Shield, ShieldCheck, UserRoundPlus, UserRoundX, UsersRound } from "lucide-react";
+import { Check, Mail, MoreHorizontal, Search, Shield, ShieldCheck, Target, UserRoundPlus, UserRoundX, UsersRound } from "lucide-react";
 import { FilterMenu } from "@/components/shared/filter-menu";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
@@ -17,6 +17,9 @@ import type { TeamMember } from "./fixtures/team.fixture";
 import { getMemberAssignedLeadsAction, inviteTeamMemberAction, setTeamMemberActiveAction } from "@/actions/team";
 import { assignUserRoleAction } from "@/actions/roles";
 import { reassignClientsAction } from "@/actions/clients";
+import { useRolePreview } from "@/components/shared/role-preview";
+import { hasPermission } from "@/lib/permissions";
+import { TargetsForm } from "@/features/reporting/components/targets-form";
 
 type RoleOption = { code: string; name: string };
 type Filters = { search: string; role: string; status: string };
@@ -122,6 +125,9 @@ function ManageDialog({ member, roles, teammates, onClose }: { member: TeamMembe
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
   const [assignmentsOpen, setAssignmentsOpen] = useState(false);
+  const [targetsOpen, setTargetsOpen] = useState(false);
+  const { effectivePermissions } = useRolePreview();
+  const canManageTargets = hasPermission(effectivePermissions, "kpi:manage_targets");
   const [activeError, setActiveError] = useState<string | null>(null);
   const [activePending, startActiveTransition] = useTransition();
   const router = useRouter();
@@ -186,6 +192,18 @@ function ManageDialog({ member, roles, teammates, onClose }: { member: TeamMembe
             Manage assignments
           </button>
         )}
+        {canManageTargets ? (
+          targetsOpen ? (
+            <div className="rounded-2xl border border-border p-3">
+              <TargetsForm userCode={member.id} userName={member.name} onSaved={() => setTargetsOpen(false)} />
+            </div>
+          ) : (
+            <button type="button" onClick={() => setTargetsOpen(true)} className={cn(softPillClass, "h-11 w-full justify-start px-4 text-sm")}>
+              <Target className="size-4" strokeWidth={1.75} />
+              Monthly targets
+            </button>
+          )
+        ) : null}
         {member.status !== "Invited" ? (
           <div>
             <button

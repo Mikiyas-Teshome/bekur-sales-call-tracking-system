@@ -12,3 +12,4 @@ export { AuthToken } from "./auth-token.entity";
 export { DeviceToken } from "./device-token.entity";
 export { NotificationPreference } from "./notification-preference.entity";
 export { UserNotification } from "./user-notification.entity";
+export { KpiTarget } from "./kpi-target.entity";

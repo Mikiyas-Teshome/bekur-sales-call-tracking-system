@@ -191,7 +191,7 @@ async function notifyNewLeads(count: number, summary: string) {
   }
 }
 
-export async function createClient(input: { displayName: string; phone: string; businessName?: string; campaignId: number; assignedUserId?: number | null }) {
+export async function createClient(input: { displayName: string; phone: string; businessName?: string; campaignId: number; assignedUserId?: number | null; assignedByUserId?: number }) {
   const dataSource = await getDataSource();
   const repo = dataSource.getRepository(Client);
   const phoneNormalized = normalizePhone(input.phone);
@@ -200,20 +200,27 @@ export async function createClient(input: { displayName: string; phone: string; 
   if (existing) throw new Error(`This number already exists as ${existing.code}`);
 
   const code = await nextClientCode(dataSource);
-  const client = await repo.save(
-    repo.create({
-      code,
-      displayName: input.displayName,
-      phone: input.phone,
-      businessName: input.businessName ?? null,
-      campaignId: input.campaignId,
-      currentAssignedUserId: input.assignedUserId ?? null,
-      firstContactDate: new Date().toISOString().slice(0, 10),
-      pipelineStage: PipelineStage.NEW_LEAD,
-    }),
-  );
+  const client = await dataSource.transaction(async (manager) => {
+    const saved = await manager.getRepository(Client).save(
+      manager.getRepository(Client).create({
+        code,
+        displayName: input.displayName,
+        phone: input.phone,
+        businessName: input.businessName ?? null,
+        campaignId: input.campaignId,
+        currentAssignedUserId: input.assignedUserId ?? null,
+        firstContactDate: new Date().toISOString().slice(0, 10),
+        pipelineStage: PipelineStage.NEW_LEAD,
+      }),
+    );
+    if (input.assignedUserId && input.assignedByUserId) {
+      await manager.getRepository(ClientAssignment).save(manager.getRepository(ClientAssignment).create({ clientId: saved.id, userId: input.assignedUserId, assignedByUserId: input.assignedByUserId }));
+    }
+    return saved;
+  });
 
   await notifyNewLeads(1, `${client.displayName} was just added as a new lead.`);
+  if (input.assignedUserId) await notifyAssigned(input.assignedUserId, 1);
   return client;
 }
 
@@ -235,9 +242,10 @@ export async function updateClient(code: string, input: { displayName: string; p
   return repo.save(client);
 }
 
-export async function bulkImportClients(input: { phones: string[]; campaignId: number }) {
+export async function bulkImportClients(input: { phones: string[]; campaignId: number; assignedUserId?: number | null; assignedByUserId?: number }) {
   const dataSource = await getDataSource();
   const repo = dataSource.getRepository(Client);
+  const assignmentRepo = dataSource.getRepository(ClientAssignment);
   const existingPhones = new Set((await repo.find({ select: { phoneNormalized: true } })).map((client) => client.phoneNormalized));
 
   let created = 0;
@@ -247,20 +255,25 @@ export async function bulkImportClients(input: { phones: string[]; campaignId: n
     existingPhones.add(phoneNormalized);
 
     const code = await nextClientCode(dataSource);
-    await repo.save(
+    const client = await repo.save(
       repo.create({
         code,
         displayName: `+${phoneNormalized}`,
         phone,
         campaignId: input.campaignId,
+        currentAssignedUserId: input.assignedUserId ?? null,
         firstContactDate: new Date().toISOString().slice(0, 10),
         pipelineStage: PipelineStage.NEW_LEAD,
       }),
     );
+    if (input.assignedUserId && input.assignedByUserId) {
+      await assignmentRepo.save(assignmentRepo.create({ clientId: client.id, userId: input.assignedUserId, assignedByUserId: input.assignedByUserId }));
+    }
     created += 1;
   }
 
   await notifyNewLeads(created, `${created} new lead${created === 1 ? "" : "s"} were imported.`);
+  if (input.assignedUserId && created > 0) await notifyAssigned(input.assignedUserId, created);
   return { created, skipped: input.phones.length - created };
 }
 
@@ -285,16 +298,17 @@ export async function reassignClients(input: { clientCodes: string[]; toUserId: 
     return clients.length;
   });
 
-  if (count > 0) {
-    try {
-      const { notify } = await import("@/services/notifications.service");
-      await notify([input.toUserId], "assignment", { title: "New leads assigned to you", body: `${count} lead${count === 1 ? "" : "s"} ${count === 1 ? "was" : "were"} just assigned to you.`, url: "/leads" });
-    } catch (error) {
-      console.error("Assignment notification failed", error);
-    }
-  }
-
+  if (count > 0) await notifyAssigned(input.toUserId, count);
   return count;
+}
+
+async function notifyAssigned(userId: number, count: number) {
+  try {
+    const { notify } = await import("@/services/notifications.service");
+    await notify([userId], "assignment", { title: "New leads assigned to you", body: `${count} lead${count === 1 ? "" : "s"} ${count === 1 ? "was" : "were"} just assigned to you.`, url: "/leads" });
+  } catch (error) {
+    console.error("Assignment notification failed", error);
+  }
 }
 
 async function nextClientCode(dataSource: Awaited<ReturnType<typeof getDataSource>>) {

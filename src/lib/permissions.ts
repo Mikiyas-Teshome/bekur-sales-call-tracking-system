@@ -21,6 +21,7 @@ export const permissionCatalog = [
   { key: "campaigns:manage_status", resource: "campaigns", action: "manage_status", label: "Pause, resume, or end campaigns", group: "Campaigns" },
   { key: "reports:view", resource: "reports", action: "view", label: "View reports", group: "Reports" },
   { key: "reports:view_team", resource: "reports", action: "view_team", label: "View team-wide reports", group: "Reports" },
+  { key: "kpi:manage_targets", resource: "kpi", action: "manage_targets", label: "Set monthly KPI targets", group: "Reports" },
   { key: "profile:edit_own", resource: "profile", action: "edit_own", label: "Edit own profile", group: "Self-service" },
   { key: "security:change_password_own", resource: "security", action: "change_password_own", label: "Change own password", group: "Self-service" },
   { key: "notifications:manage_own", resource: "notifications", action: "manage_own", label: "Manage own notification preferences", group: "Self-service" },
