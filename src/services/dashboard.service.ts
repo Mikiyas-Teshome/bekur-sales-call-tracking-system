@@ -1,6 +1,6 @@
 import "server-only";
 import { getDataSource } from "@/db/data-source";
-import { answeredOutcomes, CallOutcome, Call, Client, PipelineStage } from "@/entities";
+import { answeredOutcomes, callOutcomeTone, closedPipelineStages, midFunnelStages, Call, Client, PipelineStage } from "@/entities";
 
 function initialsOf(name: string) {
   return name
@@ -19,13 +19,6 @@ function minutesAgoLabel(date: Date) {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} hr ago`;
   return `${Math.round(hours / 24)}d ago`;
-}
-
-function outcomeTone(outcome: CallOutcome) {
-  if (outcome === CallOutcome.CONVERTED_SALE) return "success";
-  if (outcome === CallOutcome.NO_ANSWER) return "warning";
-  if (outcome === CallOutcome.CALLBACK_REQUESTED || outcome === CallOutcome.FOLLOW_UP_SCHEDULED) return "warning";
-  return "primary";
 }
 
 export async function getTodayKpis() {
@@ -78,7 +71,7 @@ export async function getFollowUps() {
     .leftJoinAndSelect("call.client", "client")
     .where("call.nextFollowUpDate IS NOT NULL")
     .andWhere("call.deletedAt IS NULL")
-    .andWhere("client.pipelineStage NOT IN (:...closed)", { closed: [PipelineStage.CLOSED_WON, PipelineStage.CLOSED_LOST] })
+    .andWhere("client.pipelineStage NOT IN (:...closed)", { closed: closedPipelineStages })
     .orderBy("call.nextFollowUpDate", "ASC")
     .limit(8)
     .getMany();
@@ -100,7 +93,7 @@ export async function getOverdueLeadsByAssignee() {
     .createQueryBuilder("client")
     .select("client.currentAssignedUserId", "userId")
     .addSelect("COUNT(*)", "count")
-    .where("client.pipelineStage NOT IN (:...closed)", { closed: [PipelineStage.CLOSED_WON, PipelineStage.CLOSED_LOST] })
+    .where("client.pipelineStage NOT IN (:...closed)", { closed: closedPipelineStages })
     .andWhere("client.currentAssignedUserId IS NOT NULL")
     .andWhere((qb) => {
       const subQuery = qb.subQuery().select("MAX(c.nextFollowUpDate)").from(Call, "c").where("c.clientId = client.id").andWhere("c.nextFollowUpDate IS NOT NULL").getQuery();
@@ -135,7 +128,7 @@ export async function getAttentionCounts() {
     .getRepository(Client)
     .createQueryBuilder("client")
     .leftJoin("client.calls", "call")
-    .where("client.pipelineStage NOT IN (:...closed)", { closed: [PipelineStage.CLOSED_WON, PipelineStage.CLOSED_LOST] })
+    .where("client.pipelineStage NOT IN (:...closed)", { closed: closedPipelineStages })
     .andWhere((qb) => {
       const subQuery = qb.subQuery().select("MAX(c.calledAt)").from(Call, "c").where("c.clientId = client.id").getQuery();
       return `(${subQuery}) < :fourteenDaysAgo`;
@@ -238,10 +231,9 @@ export async function getTodayDashboardView() {
     outcome: call.outcome as string,
     note: call.outcomeNote ?? "",
     time: minutesAgoLabel(call.calledAt),
-    tone: outcomeTone(call.outcome),
+    tone: callOutcomeTone(call.outcome),
   }));
 
-  const midFunnelStages = [PipelineStage.ATTEMPTED_CONTACT, PipelineStage.QUALIFIED, PipelineStage.DEMO_SCHEDULED, PipelineStage.PROPOSAL_SENT];
   const pipelineByStage = new Map(pipeline.map((row) => [row.stage, row.count]));
   const maxPipelineCount = Math.max(...midFunnelStages.map((stage) => pipelineByStage.get(stage) ?? 0), 1);
   const pipelineMomentum = midFunnelStages.map((stage) => {

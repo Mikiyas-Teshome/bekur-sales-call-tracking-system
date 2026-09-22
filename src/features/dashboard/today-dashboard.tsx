@@ -5,19 +5,14 @@ import { useState } from "react";
 import { ArrowUpRight, ChevronRight, CircleAlert, Clock3, Phone, Plus, TrendingUp, UserRound } from "lucide-react";
 
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
-import { chipClass, primaryPillClass, softPillClass } from "@/components/shared/pill";
+import { chipClass, primaryPillClass, softPillClass, toneChipClasses } from "@/components/shared/pill";
 import { useRolePreview } from "@/components/shared/role-preview";
 import { cn } from "@/lib/utils";
 import { hasPermission } from "@/lib/permissions";
 
 import type { TodayScope } from "./fixtures/today.fixture";
 
-const toneClasses = {
-  primary: "bg-primary/12 text-primary",
-  success: "bg-success/12 text-success",
-  warning: "bg-warning/12 text-warning",
-  destructive: "bg-destructive/12 text-destructive",
-};
+const toneClasses = toneChipClasses;
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 

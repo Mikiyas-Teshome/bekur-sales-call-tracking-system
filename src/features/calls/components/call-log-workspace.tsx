@@ -5,22 +5,18 @@ import { PhoneCall, Search, SearchX } from "lucide-react";
 import { FilterMenu } from "@/components/shared/filter-menu";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
 import { PaginationControls } from "@/components/shared/pagination-controls";
-import { chipClass } from "@/components/shared/pill";
+import { chipClass, toneChipClasses } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
 import { useSearchParamsUpdater } from "@/lib/use-search-params-updater";
 import { useDebouncedSearchFilter } from "@/lib/use-debounced-search-filter";
 import type { Paginated } from "@/lib/pagination";
 import type { CallLogRow } from "@/services/calls.service";
+import { callOutcomeTone } from "@/entities/enums";
 
 type RepOption = { code: string; name: string };
 type Filters = { search: string; outcome: string; rep: string };
 
-function outcomeTone(outcome: string) {
-  if (outcome === "Converted / Sale") return "bg-success/12 text-success";
-  if (outcome === "No Answer") return "bg-muted text-muted-foreground";
-  if (outcome === "Callback Requested" || outcome === "Follow-up Scheduled") return "bg-warning/12 text-warning";
-  return "bg-primary/12 text-primary";
-}
+const outcomeTone = (outcome: string) => toneChipClasses[callOutcomeTone(outcome)];
 
 export function CallLogWorkspace({
   result,

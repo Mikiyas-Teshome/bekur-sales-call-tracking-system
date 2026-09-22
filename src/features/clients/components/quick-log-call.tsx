@@ -7,9 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { primaryPillClass, softPillClass } from "@/components/shared/pill";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { cn } from "@/lib/utils";
-import { callOutcomes, pipelineStages, type Lead } from "@/features/clients/fixtures/leads.fixture";
+import type { Lead } from "@/features/clients/fixtures/leads.fixture";
 import { logCallAction } from "@/actions/calls";
-import type { CallOutcome, PipelineStage } from "@/entities/enums";
+import { CallOutcome, PipelineStage, callOutcomeGroups, pipelineStageGroups } from "@/entities/enums";
+
+const selectClass = "h-11 w-full appearance-none rounded-full border border-input bg-background px-4 pr-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
+const pipelineStageValues = new Set<string>(Object.values(PipelineStage));
 
 function daysFromNow(days: number) {
   const date = new Date();
@@ -24,8 +28,9 @@ type QuickLogCallProps = {
 };
 
 function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) {
-  const [outcome, setOutcome] = useState(callOutcomes[0]);
-  const [stage, setStage] = useState("Qualified");
+  const [outcome, setOutcome] = useState<CallOutcome>(CallOutcome.ANSWERED_INTERESTED);
+  // Start from the lead's current stage so a call that doesn't move the deal saves without re-picking it.
+  const [stage, setStage] = useState<PipelineStage>(pipelineStageValues.has(lead.stage) ? (lead.stage as PipelineStage) : PipelineStage.ATTEMPTED_CONTACT);
   const [followUp, setFollowUp] = useState("");
   const [calledAt, setCalledAt] = useState(new Date().toISOString().slice(0, 16));
   const [note, setNote] = useState("");
@@ -39,9 +44,9 @@ function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) 
     startTransition(async () => {
       const result = await logCallAction({
         clientCode: lead.id,
-        outcome: outcome as CallOutcome,
+        outcome,
         outcomeNote: note,
-        pipelineStageAfter: stage as PipelineStage,
+        pipelineStageAfter: stage,
         nextFollowUpDate: followUp || undefined,
         calledAt: calledAt || undefined,
       });
@@ -90,9 +95,15 @@ function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) 
           Outcome
         </label>
         <div className="relative mt-2">
-          <select id="outcome" value={outcome} onChange={(event) => setOutcome(event.target.value)} className="h-11 w-full appearance-none rounded-full border border-input bg-background px-4 pr-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-            {callOutcomes.map((item) => (
-              <option key={item}>{item}</option>
+          <select id="outcome" value={outcome} onChange={(event) => setOutcome(event.target.value as CallOutcome)} className={selectClass}>
+            {callOutcomeGroups.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.outcomes.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <ChevronDown className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -122,9 +133,15 @@ function CallForm({ lead, onComplete }: { lead: Lead; onComplete: () => void }) 
             Pipeline stage
           </label>
           <div className="relative mt-2">
-            <select id="stage" value={stage} onChange={(event) => setStage(event.target.value)} className="h-11 w-full appearance-none rounded-full border border-input bg-background px-4 pr-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-              {pipelineStages.map((item) => (
-                <option key={item}>{item}</option>
+            <select id="stage" value={stage} onChange={(event) => setStage(event.target.value as PipelineStage)} className={selectClass}>
+              {pipelineStageGroups.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.stages.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <ChevronDown className="pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2 text-muted-foreground" />

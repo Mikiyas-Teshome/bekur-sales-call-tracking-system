@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ArrowDownUp, Check, Filter, MessageCircle, Pencil, Phone, Plus, RotateCcw, Search, SearchX, SlidersHorizontal, UserRoundPlus, Users } from "lucide-react";
-import { chipClass, primaryPillClass, softPillClass } from "@/components/shared/pill";
+import { chipClass, primaryPillClass, softPillClass, toneChipClasses } from "@/components/shared/pill";
 import { FilterMenu } from "@/components/shared/filter-menu";
 import { ResponsiveDialog } from "@/components/shared/responsive-dialog";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
@@ -16,21 +16,14 @@ import { useSearchParamsUpdater } from "@/lib/use-search-params-updater";
 import { useDebouncedSearchFilter } from "@/lib/use-debounced-search-filter";
 import type { Paginated } from "@/lib/pagination";
 import type { AssignableRep, Lead } from "@/features/clients/fixtures/leads.fixture";
+import { pipelineStageTone } from "@/entities/enums";
 import { createClientAction, reassignClientsAction, updateClientAction } from "@/actions/clients";
 import { QuickLogCall } from "./quick-log-call";
 
 const filterOptions = ["All leads", "Needs attention", "No calls yet", "Overdue follow-up"];
 const sortOptions = ["Newest follow-up", "Oldest follow-up", "Most calls", "Name A-Z"];
 
-const stageClasses: Record<string, string> = {
-  "New Lead": "bg-accent text-accent-foreground",
-  "Attempted Contact": "bg-muted text-muted-foreground",
-  Qualified: "bg-success/12 text-success",
-  "Demo Scheduled": "bg-primary/12 text-primary",
-  "Proposal Sent": "bg-warning/12 text-warning",
-  "Closed Won": "bg-success/12 text-success",
-  "Closed Lost": "bg-destructive/12 text-destructive",
-};
+const stageClass = (stage: string) => toneChipClasses[pipelineStageTone(stage)];
 
 type Filters = { search: string; view: string; campaign: string; stage: string; sort: string };
 type CampaignOption = { code: string; name: string };
@@ -254,7 +247,7 @@ function LeadTableRow({ lead, onLog, onEdit, canReassign, selected, onToggleSele
       </td>
       <td className="px-4 py-3.5 text-sm font-semibold">{lead.assignee}</td>
       <td className="px-4 py-3.5">
-        <span className={cn(chipClass, stageClasses[lead.stage])}>{lead.stage}</span>
+        <span className={cn(chipClass, stageClass(lead.stage))}>{lead.stage}</span>
       </td>
       <td className={cn("px-4 py-3.5 text-sm font-bold", attentionClass(lead.attention))}>{lead.nextFollowUp}</td>
       <td className="px-4 py-3.5 text-center text-sm font-bold tabular-nums">{lead.callCount}</td>
@@ -294,7 +287,7 @@ function LeadMobileRow({ lead, onLog, onEdit, canReassign, selected, onToggleSel
               <p className="truncate text-sm font-bold">{lead.name}</p>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{lead.business}</p>
             </Link>
-            <span className={cn(chipClass, "shrink-0", stageClasses[lead.stage])}>{lead.stage}</span>
+            <span className={cn(chipClass, "shrink-0", stageClass(lead.stage))}>{lead.stage}</span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
             <span className="text-muted-foreground">

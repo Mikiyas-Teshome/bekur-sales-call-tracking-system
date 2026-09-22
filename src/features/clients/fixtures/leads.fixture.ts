@@ -1,4 +1,6 @@
-export type LeadStage = "New Lead" | "Attempted Contact" | "Qualified" | "Demo Scheduled" | "Proposal Sent" | "Closed Won" | "Closed Lost";
+import type { PipelineStage } from "@/entities/enums";
+
+export type LeadStage = `${PipelineStage}`;
 
 export type Lead = {
   id: string;
@@ -24,10 +26,6 @@ export const leads: Lead[] = [
   { id: "CL-0244", initials: "MW", name: "Meron Wondimu", business: "Nile Healthcare", phone: "+251 92 788 3409", campaign: "Demo Requests", project: "Clinic Growth", stage: "New Lead", assignee: "Unassigned", lastCall: "No calls", nextFollowUp: "New today", callCount: 0, attention: "today" },
   { id: "CL-0243", initials: "SA", name: "Selamawit Abebe", business: "Mekane Clinic", phone: "+251 93 402 5176", campaign: "September Messages", project: "Clinic Growth", stage: "Qualified", assignee: "Amanuel M.", lastCall: "Sep 11", nextFollowUp: "Sep 20", callCount: 3, attention: "clear" },
 ];
-
-export const callOutcomes = ["Answered - Interested", "Answered - Requested Demo", "Callback Requested", "No Answer", "Follow-up Scheduled", "Converted / Sale"];
-
-export const pipelineStages = ["Attempted Contact", "Contacted", "Qualified", "Demo Scheduled", "Proposal Sent", "Closed Won"];
 
 export const callHistory = [
   { id: "call-06", outcome: "Follow-up Scheduled", stage: "Proposal Sent", note: "Asked for a final proposal that includes the two additional branches. She will review it with her partner on Thursday.", date: "Sep 14, 2026 · 2:40 PM", value: "$4,200", rep: "Amanuel M." },
