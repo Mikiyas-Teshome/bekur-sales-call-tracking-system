@@ -1,6 +1,6 @@
 import "server-only";
 import { getDataSource } from "@/db/data-source";
-import { Client, ClientAssignment, PipelineStage } from "@/entities";
+import { Call, Client, ClientAssignment, PipelineStage } from "@/entities";
 import { normalizePhone } from "@/lib/phone";
 import { paginate, type Paginated } from "@/lib/pagination";
 import type { Lead } from "@/features/clients/fixtures/leads.fixture";
@@ -85,7 +85,15 @@ export async function listLeads(params: ListLeadsParams): Promise<Paginated<Lead
     .orderBy("client.createdAt", "DESC");
 
   if (params.search) {
-    query.andWhere("(client.displayName ILIKE :search OR client.phone ILIKE :search OR client.businessName ILIKE :search)", { search: `%${params.search}%` });
+    const noteMatch = query
+      .subQuery()
+      .select("1")
+      .from(Call, "noteCall")
+      .where("noteCall.clientId = client.id")
+      .andWhere("noteCall.deletedAt IS NULL")
+      .andWhere("noteCall.outcomeNote ILIKE :search")
+      .getQuery();
+    query.andWhere(`(client.displayName ILIKE :search OR client.phone ILIKE :search OR client.businessName ILIKE :search OR EXISTS ${noteMatch})`, { search: `%${params.search}%` });
   }
   if (params.campaign && params.campaign !== "All campaigns") {
     query.andWhere("campaign.name = :campaignName", { campaignName: params.campaign });

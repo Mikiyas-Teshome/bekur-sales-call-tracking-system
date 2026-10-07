@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { useRolePreview } from "@/components/shared/role-preview";
 import { hasPermission } from "@/lib/permissions";
 import { useSearchParamsUpdater } from "@/lib/use-search-params-updater";
-import { useDebouncedSearchFilter } from "@/lib/use-debounced-search-filter";
 import type { Paginated } from "@/lib/pagination";
 import type { AssignableRep, Lead } from "@/features/clients/fixtures/leads.fixture";
 import { pipelineStageTone } from "@/entities/enums";
@@ -52,7 +51,13 @@ export function LeadsWorkspace({
   const canReassign = hasPermission(effectivePermissions, "leads:reassign");
   const canCreate = hasPermission(effectivePermissions, "leads:create");
   const updateParams = useSearchParamsUpdater();
-  const [searchInput, setSearchInput] = useDebouncedSearchFilter(filters.search);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const [trackedSearch, setTrackedSearch] = useState(filters.search);
+  if (filters.search !== trackedSearch) {
+    setTrackedSearch(filters.search);
+    setSearchInput(filters.search);
+  }
+  const [filtersOpen, setFiltersOpen] = useState(filters.view !== "All leads" || filters.campaign !== "All campaigns" || filters.stage !== "All stages" || filters.sort !== "Newest follow-up");
   const [loggingLead, setLoggingLead] = useState<Lead | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -86,7 +91,8 @@ export function LeadsWorkspace({
   };
 
   const selectedLeads = leads.filter((lead) => selectedIds.has(lead.id));
-  const filtersActive = filters.view !== "All leads" || filters.campaign !== "All campaigns" || filters.stage !== "All stages" || filters.search;
+  const filtersActive = filters.view !== "All leads" || filters.campaign !== "All campaigns" || filters.stage !== "All stages" || filters.sort !== "Newest follow-up" || filters.search;
+  const activeFilterCount = [filters.view !== "All leads", filters.campaign !== "All campaigns", filters.stage !== "All stages", filters.sort !== "Newest follow-up"].filter(Boolean).length;
 
   return (
     <div className="space-y-4 lg:space-y-5">
@@ -115,34 +121,50 @@ export function LeadsWorkspace({
             <SurfaceTitle>Active leads</SurfaceTitle>
             <p className="mt-1 text-sm text-muted-foreground">{result.total} leads match your current view</p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" aria-label="Filters" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} className={cn(softPillClass, "h-11 px-5 text-sm")}>
+            <SlidersHorizontal className="size-4" strokeWidth={filtersOpen || activeFilterCount ? 2.25 : 1.75} />
+            Filters
+            {activeFilterCount ? <span className="grid size-5 place-items-center rounded-full bg-primary text-[11px] text-primary-foreground">{activeFilterCount}</span> : null}
+          </button>
+        </SurfaceHeader>
+        <form
+          role="search"
+          className="mt-4 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = searchInput.trim();
+            if (value !== filters.search) updateParams({ search: value || null });
+          }}
+        >
+          <label className="relative block min-w-0 flex-1">
+            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
+            <input
+              aria-label="Search leads"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search name, phone, business, or call note"
+              className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            />
+          </label>
+          <button type="submit" className={cn(primaryPillClass, "h-11 px-5 text-sm")}>
+            <Search className="size-4" strokeWidth={2.25} />
+            Search
+          </button>
+        </form>
+        {filtersOpen ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
             <FilterMenu label="Lead view" value={filters.view} options={filterOptions} onChange={(value) => updateParams({ view: value === "All leads" ? null : value })} icon={Filter} />
             <FilterMenu label="Campaign" value={filters.campaign} options={campaigns} onChange={(value) => updateParams({ campaign: value === "All campaigns" ? null : value })} />
             <FilterMenu label="Stage" value={filters.stage} options={stages} onChange={(value) => updateParams({ stage: value === "All stages" ? null : value })} />
             <FilterMenu label="Sort" value={filters.sort} options={sortOptions} onChange={(value) => updateParams({ sort: value === "Newest follow-up" ? null : value })} icon={ArrowDownUp} />
+            {filtersActive ? (
+              <button type="button" onClick={resetFilters} className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                <RotateCcw className="size-3.5" strokeWidth={1.75} />
+                Reset
+              </button>
+            ) : null}
           </div>
-        </SurfaceHeader>
-        <label className="relative mt-4 block">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-          <input
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search by name, phone, or business"
-            className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          />
-        </label>
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-4">
-          <p className="text-xs text-muted-foreground">
-            <SlidersHorizontal className="mr-1 inline size-3.5" strokeWidth={1.75} />
-            {filters.view} · {filters.campaign} · {filters.stage}
-          </p>
-          {filtersActive ? (
-            <button type="button" onClick={resetFilters} className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-              <RotateCcw className="size-3.5" strokeWidth={1.75} />
-              Reset
-            </button>
-          ) : null}
-        </div>
+        ) : null}
       </Surface>
 
       {canReassign && selectedIds.size > 0 ? (
