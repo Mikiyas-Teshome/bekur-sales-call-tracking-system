@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { PhoneCall, Search, SearchX } from "lucide-react";
+import { useState } from "react";
+import { PhoneCall, Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { FilterMenu } from "@/components/shared/filter-menu";
 import { Surface, SurfaceHeader, SurfaceTitle } from "@/components/shared/surface";
 import { PaginationControls } from "@/components/shared/pagination-controls";
-import { chipClass, toneChipClasses } from "@/components/shared/pill";
+import { chipClass, primaryPillClass, softPillClass, toneChipClasses } from "@/components/shared/pill";
 import { cn } from "@/lib/utils";
 import { useSearchParamsUpdater } from "@/lib/use-search-params-updater";
-import { useDebouncedSearchFilter } from "@/lib/use-debounced-search-filter";
 import type { Paginated } from "@/lib/pagination";
 import type { CallLogRow } from "@/services/calls.service";
 import { callOutcomeTone } from "@/entities/enums";
@@ -31,7 +31,14 @@ export function CallLogWorkspace({
 }) {
   const calls = result.items;
   const updateParams = useSearchParamsUpdater();
-  const [searchInput, setSearchInput] = useDebouncedSearchFilter(filters.search);
+  const [searchInput, setSearchInput] = useState(filters.search);
+  const [trackedSearch, setTrackedSearch] = useState(filters.search);
+  if (filters.search !== trackedSearch) {
+    setTrackedSearch(filters.search);
+    setSearchInput(filters.search);
+  }
+  const activeFilterCount = (filters.outcome && filters.outcome !== "All outcomes" ? 1 : 0) + (filters.rep && filters.rep !== "All reps" ? 1 : 0);
+  const [filtersOpen, setFiltersOpen] = useState(activeFilterCount > 0);
 
   return (
     <div className="space-y-4 lg:space-y-5">
@@ -47,15 +54,42 @@ export function CallLogWorkspace({
             <SurfaceTitle>All calls</SurfaceTitle>
             <p className="mt-1 text-sm text-muted-foreground">{result.total} calls match your current view</p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" aria-label="Filters" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} className={cn(softPillClass, "h-11 px-5 text-sm")}>
+            <SlidersHorizontal className="size-4" strokeWidth={filtersOpen || activeFilterCount ? 2.25 : 1.75} />
+            Filters
+            {activeFilterCount ? <span className="grid size-5 place-items-center rounded-full bg-primary text-[11px] text-primary-foreground">{activeFilterCount}</span> : null}
+          </button>
+        </SurfaceHeader>
+        <form
+          role="search"
+          className="mt-5 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = searchInput.trim();
+            if (value !== filters.search) updateParams({ search: value || null });
+          }}
+        >
+          <label className="relative block min-w-0 flex-1">
+            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
+            <input aria-label="Search calls" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search lead, phone, or call note" className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
+          </label>
+          <button type="submit" className={cn(primaryPillClass, "h-11 px-5 text-sm")}>
+            <Search className="size-4" strokeWidth={2.25} />
+            Search
+          </button>
+        </form>
+        {filtersOpen ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <FilterMenu label="Outcome" value={filters.outcome} options={["All outcomes", ...outcomeOptions]} onChange={(value) => updateParams({ outcome: value === "All outcomes" ? null : value })} />
             <FilterMenu label="Rep" value={repOptions.find((rep) => rep.code === filters.rep)?.name ?? "All reps"} options={["All reps", ...repOptions.map((rep) => rep.name)]} onChange={(value) => updateParams({ rep: value === "All reps" ? null : (repOptions.find((rep) => rep.name === value)?.code ?? null) })} />
+            {activeFilterCount ? (
+              <button type="button" onClick={() => updateParams({ outcome: null, rep: null })} className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">
+                <X className="size-4" strokeWidth={1.75} />
+                Clear filters
+              </button>
+            ) : null}
           </div>
-        </SurfaceHeader>
-        <label className="relative mt-5 block">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-          <input aria-label="Search calls" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search by lead name or phone" className="h-11 w-full rounded-full border border-input bg-background pr-4 pl-10 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
-        </label>
+        ) : null}
       </Surface>
 
       {calls.length ? (

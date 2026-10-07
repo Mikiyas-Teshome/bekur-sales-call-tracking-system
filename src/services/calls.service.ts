@@ -41,7 +41,7 @@ export async function listAllCalls(params: ListAllCallsParams): Promise<Paginate
     .orderBy("call.calledAt", "DESC");
 
   if (params.search) {
-    query.andWhere("(client.displayName ILIKE :search OR client.phone ILIKE :search)", { search: `%${params.search}%` });
+    query.andWhere("(client.displayName ILIKE :search OR client.phone ILIKE :search OR call.outcomeNote ILIKE :search)", { search: `%${params.search}%` });
   }
   if (params.outcome && params.outcome !== "All outcomes") {
     query.andWhere("call.outcome = :outcome", { outcome: params.outcome });
